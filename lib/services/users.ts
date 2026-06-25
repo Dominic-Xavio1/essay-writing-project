@@ -1,0 +1,180 @@
+import { query } from '../db';
+
+export interface DbUser {
+  id: string;
+  name: string;
+  email: string;
+  avatar: string;
+  bio: string;
+  is_private: boolean;
+  email_notifications: boolean;
+  push_notifications: boolean;
+  password_hash?: string;
+}
+
+export async function findUserByEmail(email: string) {
+  const { rows } = await query<DbUser>(
+    'SELECT * FROM users WHERE email = $1',
+    [email.toLowerCase()]
+  );
+  return rows[0] ?? null;
+}
+
+export async function findUserById(id: string) {
+  const { rows } = await query<DbUser>(
+    'SELECT id, name, email, avatar, bio, is_private, email_notifications, push_notifications FROM users WHERE id = $1',
+    [id]
+  );
+  return rows[0] ?? null;
+}
+
+export async function createUser(name: string, email: string, passwordHash: string) {
+  const { rows } = await query<DbUser>(
+    `INSERT INTO users (name, email, password_hash)
+     VALUES ($1, $2, $3)
+     RETURNING id, name, email, avatar, bio, is_private, email_notifications, push_notifications`,
+    [name, email.toLowerCase(), passwordHash]
+  );
+  return rows[0];
+}
+
+export async function getUserStats(userId: string) {
+  try {
+    const { rows } = await query<{
+      posts: string;
+      likes: string;
+      followers: string;
+      following: string;
+    }>(
+      `SELECT
+         (SELECT COUNT(*) FROM posts WHERE author_id = $1 AND status = 'published') AS posts,
+         (SELECT COUNT(*) FROM likes l JOIN posts p ON l.post_id = p.id WHERE p.author_id = $1) AS likes,
+         (SELECT COUNT(*) FROM follows WHERE following_id = $1) AS followers,
+         (SELECT COUNT(*) FROM follows WHERE follower_id = $1) AS following`,
+      [userId]
+    );
+    const s = rows[0];
+    return {
+      posts: Number(s?.posts ?? 0),
+      likes: Number(s?.likes ?? 0),
+      followers: Number(s?.followers ?? 0),
+      following: Number(s?.following ?? 0),
+    };
+  } catch (error) {
+    // Return default stats if tables don't exist yet
+    console.warn('Error fetching user stats:', error instanceof Error ? error.message : 'Unknown error');
+    return {
+      posts: 0,
+      likes: 0,
+      followers: 0,
+      following: 0,
+    };
+  }
+}
+
+export async function formatUser(userId: string) {
+  const user = await findUserById(userId);
+  if (!user) return null;
+  const stats = await getUserStats(userId);
+  return {
+    id: user.id,
+    name: user.name,
+    email: user.email,
+    avatar: user.avatar || '',
+    bio: user.bio || '',
+    isPrivate: user.is_private,
+    emailNotifications: user.email_notifications,
+    pushNotifications: user.push_notifications,
+    ...stats,
+  };
+}
+
+export async function updateUser(
+  userId: string,
+  data: { name?: string; bio?: string; avatar?: string }
+) {
+  const { rows } = await query<DbUser>(
+    `UPDATE users SET
+       name = COALESCE($2, name),
+       bio = COALESCE($3, bio),
+       avatar = COALESCE($4, avatar)
+     WHERE id = $1
+     RETURNING id, name, email, avatar, bio, is_private, email_notifications, push_notifications`,
+    [userId, data.name ?? null, data.bio ?? null, data.avatar ?? null]
+  );
+  return rows[0] ?? null;
+}
+
+export async function updateUserSettings(
+  userId: string,
+  data: { isPrivate?: boolean; emailNotifications?: boolean; pushNotifications?: boolean }
+) {
+  const { rows } = await query<DbUser>(
+    `UPDATE users SET
+       is_private = COALESCE($2, is_private),
+       email_notifications = COALESCE($3, email_notifications),
+       push_notifications = COALESCE($4, push_notifications)
+     WHERE id = $1
+     RETURNING id, name, email, avatar, bio, is_private, email_notifications, push_notifications`,
+    [
+      userId,
+      data.isPrivate ?? null,
+      data.emailNotifications ?? null,
+      data.pushNotifications ?? null,
+    ]
+  );
+  return rows[0] ?? null;
+}
+
+export async function updatePassword(userId: string, passwordHash: string) {
+  await query('UPDATE users SET password_hash = $2 WHERE id = $1', [userId, passwordHash]);
+}
+
+export async function deleteUser(userId: string) {
+  await query('DELETE FROM users WHERE id = $1', [userId]);
+}
+
+export async function getAuthorProfile(authorId: string, viewerId?: string) {
+  const user = await findUserById(authorId);
+  if (!user) return null;
+
+  const stats = await getUserStats(authorId);
+  let isFollowing = false;
+  if (viewerId) {
+    const { rows } = await query(
+      'SELECT 1 FROM follows WHERE follower_id = $1 AND following_id = $2',
+      [viewerId, authorId]
+    );
+    isFollowing = rows.length > 0;
+  }
+
+  return {
+    id: user.id,
+    name: user.name,
+    avatar: user.avatar || '',
+    bio: user.bio || '',
+    followers: stats.followers,
+    following: stats.following,
+    posts: stats.posts,
+    isFollowing,
+  };
+}
+
+export async function toggleFollow(followerId: string, followingId: string) {
+  const { rows } = await query(
+    'SELECT 1 FROM follows WHERE follower_id = $1 AND following_id = $2',
+    [followerId, followingId]
+  );
+  if (rows.length > 0) {
+    await query('DELETE FROM follows WHERE follower_id = $1 AND following_id = $2', [
+      followerId,
+      followingId,
+    ]);
+    return { following: false };
+  }
+  await query('INSERT INTO follows (follower_id, following_id) VALUES ($1, $2)', [
+    followerId,
+    followingId,
+  ]);
+  return { following: true };
+}
