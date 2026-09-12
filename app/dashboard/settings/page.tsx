@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { Header } from '@/components/shared/Header';
 import { Footer } from '@/components/shared/Footer';
 import { api } from '@/lib/api-client';
+import { Button } from '@/components/ui/customButton';
 import { AlertCircle } from 'lucide-react';
 import type { User } from '@/lib/user';
 
@@ -123,9 +124,9 @@ export default function SettingsPage() {
                     <textarea value={bio} onChange={(e) => setBio(e.target.value)} rows={4} className="w-full px-4 py-3 border border-border rounded-lg bg-secondary focus:outline-none focus:ring-2 focus:ring-primary resize-none" />
                     <p className="text-xs text-muted-foreground mt-1">{bio.length}/500 characters</p>
                   </div>
-                  <button onClick={handleSaveProfile} className="px-6 py-3 bg-primary text-primary-foreground rounded-lg font-semibold hover:opacity-90">
+                  <Button variant="accent" onClick={handleSaveProfile}>
                     Save Changes
-                  </button>
+                  </Button>
                 </div>
               )}
 
@@ -139,24 +140,24 @@ export default function SettingsPage() {
                     <h3 className="text-xl font-bold">Change Password</h3>
                     <input type="password" placeholder="Current password" value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)} className="w-full px-4 py-3 border border-border rounded-lg bg-secondary" />
                     <input type="password" placeholder="New password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} className="w-full px-4 py-3 border border-border rounded-lg bg-secondary" />
-                    <button onClick={handleChangePassword} className="px-6 py-3 border border-border rounded-lg font-semibold hover:bg-secondary">
+                    <Button variant="green" onClick={handleChangePassword}>
                       Change Password
-                    </button>
+                    </Button>
                   </div>
                   <div className="bg-card border border-border rounded-lg p-8">
                     <h3 className="text-xl font-bold mb-4">Session</h3>
-                    <button onClick={handleLogout} className="px-6 py-3 border border-border rounded-lg font-semibold hover:bg-secondary">
+                    <Button variant="outline" onClick={handleLogout}>
                       Sign Out
-                    </button>
+                    </Button>
                   </div>
                   <div className="bg-card border border-destructive rounded-lg p-8">
                     <div className="flex gap-4 items-start">
                       <AlertCircle className="text-destructive flex-shrink-0 mt-1" size={24} />
                       <div>
                         <h3 className="text-xl font-bold mb-2">Delete Account</h3>
-                        <button onClick={handleDeleteAccount} className="px-6 py-3 bg-destructive text-destructive-foreground rounded-lg font-semibold hover:opacity-90">
+                        <Button variant="destructive" onClick={handleDeleteAccount}>
                           Delete Account
-                        </button>
+                        </Button>
                       </div>
                     </div>
                   </div>
@@ -179,9 +180,9 @@ export default function SettingsPage() {
                       <input type="checkbox" checked={item.value} onChange={(e) => item.set(e.target.checked)} className="w-5 h-5" />
                     </div>
                   ))}
-                  <button onClick={handleSavePrivacy} className="px-6 py-3 bg-primary text-primary-foreground rounded-lg font-semibold hover:opacity-90">
+                  <Button variant="accent" onClick={handleSavePrivacy}>
                     Save Privacy Settings
-                  </button>
+                  </Button>
                 </div>
               )}
             </div>

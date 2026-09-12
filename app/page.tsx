@@ -3,8 +3,10 @@
 import Link from 'next/link';
 import { Heart, BookMarked, TrendingUp, Share2, MessageSquare, Sparkles } from 'lucide-react';
 import Image from 'next/image';
+import Button from '@/components/ui/customButton'
 import StormtrooperCanvas from "@/components/StormtrooperCanvas";
 import {motion} from 'framer-motion';
+import {motion as Motion} from "motion/react"
 export default function Home() {
   return (
     <div className="min-h-screen bg-background">
@@ -30,26 +32,26 @@ export default function Home() {
           {/* Main nav */}
           <nav className="h-16 flex items-center justify-between">
             <Link href="/" className="flex items-center gap-2">
-                <Image src="/agahozo.png" alt="EssayHub" width={53} height={53} />
-              <span className="font-bold text-foreground">EssayHub</span>
+                <Image src="/agahozo.png" alt="ASYV Writing" width={42} height={42} className="rounded-md" />
+              <span className="font-serif text-lg font-bold text-foreground">ASYV Writing</span>
             </Link>
 
             <div className="hidden md:flex items-center gap-8">
               <Link href="/posts" className="text-foreground/80 hover:text-foreground text-sm font-medium transition-colors">
                 Explore
               </Link>
+              <Link href="/dashboard" className="text-foreground/80 hover:text-foreground text-sm font-medium transition-colors">
+                Dashboard
+              </Link>
+              <Link href="/create" className="text-foreground/80 hover:text-foreground text-sm font-medium transition-colors">
+                Write
+              </Link>
               <Link href="#features" className="text-foreground/80 hover:text-foreground text-sm font-medium transition-colors">
                 Features
               </Link>
-              <Link href="#about" className="text-foreground/80 hover:text-foreground text-sm font-medium transition-colors">
-                About
-              </Link>
-              <Link href="#" className="text-foreground/80 hover:text-foreground text-sm font-medium transition-colors">
-                Contact
-              </Link>
             </div>
 
-            <div className="flex items-center gap-3">
+            {/* 
               <Link href="/auth/login" className="text-foreground/80 hover:text-foreground text-sm font-medium transition-colors hidden sm:block">
                 Sign In
               </Link>
@@ -59,6 +61,14 @@ export default function Home() {
               >
                 Start Free
               </Link>
+            </div> */}
+            <div className="flex items-center gap-3">
+              <Button variant="green" href="/auth/login">
+                Sign In
+              </Button>
+              <Button variant="accent" href="/auth/signup">
+                Start Free
+              </Button>
             </div>
           </nav>
         </div>
@@ -70,9 +80,9 @@ export default function Home() {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-16 items-center">
             {/* Left Content */}
             <div>
-              <div className="inline-flex items-center gap-2 px-3 py-1 bg-white mb-8 border border-border">
+              {/* <div className="inline-flex items-center gap-2 px-3 py-1 bg-white mb-8 border border-border">
                 <span className="text-xs font-semibold text-accent uppercase tracking-wide">Write at Warp Speed</span>
-              </div>
+              </div> */}
 
               <div className="relative group">
                 <motion.div
@@ -81,7 +91,7 @@ export default function Home() {
                   transition={{ duration: 0.6, delay: 0.2 }}
                   className="text-5xl sm:text-6xl font-bold text-foreground leading-tight mb-6 relative overflow-hidden"
                 >
-                  <span className="relative z-10">Publishing is king in the digital age</span>
+                  <span className="relative z-10">Publishing is king</span> <span className="">in the digital age</span>
                   <motion.div
                     initial={{ x: "-100%" }}
                     animate={{ x: "100%" }}
@@ -101,18 +111,12 @@ export default function Home() {
               </p>
 
               <div className="flex flex-col sm:flex-row gap-4">
-                <Link
-                  href="/create"
-                  className="inline-flex items-center justify-center px-6 py-3 bg-primary text-primary-foreground rounded-lg font-semibold hover:bg-primary/90 transition-colors"
-                >
+                <Button variant="green" size="lg" href="/create">
                   Start Writing
-                </Link>
-                <Link
-                  href="/posts"
-                  className="inline-flex items-center justify-center px-6 py-3 bg-accent text-primary-foreground rounded-lg font-semibold hover:bg-accent/90 transition-colors"
-                >
+                </Button>
+                <Button variant="accent" size="lg" href="/posts">
                   Explore Now
-                </Link>
+                </Button>
               </div>
             </div>
 
@@ -270,12 +274,9 @@ export default function Home() {
           <p className="text-lg text-primary-foreground/90 mb-8 leading-relaxed">
             Join thousands of writers creating meaningful content and building their audience on EssayHub.
           </p>
-          <Link
-            href="/auth/signup"
-            className="inline-flex items-center justify-center px-8 py-3 bg-primary-foreground text-primary rounded-lg font-semibold hover:bg-primary-foreground/90 transition-colors"
-          >
+          <Button variant="accent" size="lg" href="/auth/signup">
             Get Started Free
-          </Link>
+          </Button>
         </div>
       </section>
 

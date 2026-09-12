@@ -1,13 +1,29 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { Header } from '@/components/shared/Header';
 import { Footer } from '@/components/shared/Footer';
 import { categories, allTags } from '@/lib/posts';
 import { api } from '@/lib/api-client';
-import { Heart, MessageCircle, Share2, Bookmark, Search } from 'lucide-react';
+import { ClapButton } from '@/components/ui/clap-button';
+import { AuthorHoverCard } from '@/components/ui/author-hover-card';
+import {
+  MessageSquare,
+  Share2,
+  Bookmark,
+  Search,
+  Clock,
+  Sparkles,
+  X,
+  TrendingUp,
+  SlidersHorizontal,
+  Copy,
+  Check,
+} from 'lucide-react';
 import type { Post } from '@/lib/posts';
+import { motion, AnimatePresence } from 'framer-motion';
+import { toast } from 'sonner';
 
 export default function PostsPage() {
   const [posts, setPosts] = useState<Post[]>([]);
@@ -16,8 +32,22 @@ export default function PostsPage() {
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [sortBy, setSortBy] = useState<'recent' | 'trending'>('recent');
-  const [likedPosts, setLikedPosts] = useState<string[]>([]);
   const [bookmarkedPosts, setBookmarkedPosts] = useState<string[]>([]);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+
+  const searchInputRef = useRef<HTMLInputElement>(null);
+
+  // Keyboard shortcut listener (Cmd+K / Ctrl+K)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        searchInputRef.current?.focus();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
 
   useEffect(() => {
     const params: Record<string, string> = { sort: sortBy };
@@ -27,143 +57,344 @@ export default function PostsPage() {
 
     setLoading(true);
     api.getPosts(params)
-      .then((data: { posts: Post[] }) => setPosts(data.posts))
+      .then((data: { posts?: Post[] }) => setPosts(data.posts || []))
       .catch(() => setPosts([]))
       .finally(() => setLoading(false));
   }, [searchQuery, selectedCategory, selectedTags, sortBy]);
 
   const toggleTag = (tag: string) => {
-    setSelectedTags((prev) => (prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag]));
+    setSelectedTags((prev) =>
+      prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag]
+    );
   };
 
-  const toggleLike = async (postId: string) => {
+  const toggleBookmark = async (postId: string, e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
     try {
-      const result = await api.likePost(postId) as { liked: boolean };
-      setLikedPosts((prev) => result.liked ? [...prev, postId] : prev.filter((id) => id !== postId));
-      setPosts((prev) => prev.map((p) => p.id === postId ? { ...p, likes: p.likes + (result.liked ? 1 : -1) } : p));
+      const result = (await api.bookmarkPost(postId)) as { bookmarked: boolean };
+      setBookmarkedPosts((prev) =>
+        result.bookmarked ? [...prev, postId] : prev.filter((id) => id !== postId)
+      );
+      toast.success(result.bookmarked ? 'Essay saved to bookmarks!' : 'Removed from bookmarks');
     } catch {
-      alert('Sign in to like essays');
+      toast.error('Sign in to bookmark essays');
     }
   };
 
-  const toggleBookmark = async (postId: string) => {
-    try {
-      const result = await api.bookmarkPost(postId) as { bookmarked: boolean };
-      setBookmarkedPosts((prev) => result.bookmarked ? [...prev, postId] : prev.filter((id) => id !== postId));
-    } catch {
-      alert('Sign in to bookmark essays');
-    }
+  const handleShare = (postId: string, title: string, e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const url = `${window.location.origin}/posts/${postId}`;
+    navigator.clipboard.writeText(url);
+    setCopiedId(postId);
+    toast.success('Link copied to clipboard!', {
+      description: `"${title}"`,
+    });
+    setTimeout(() => setCopiedId(null), 2000);
   };
 
-  const formatDate = (d: string | Date) => new Date(d).toLocaleDateString();
+  const formatDate = (d: string | Date) =>
+    new Date(d).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
 
   return (
     <>
       <Header />
-      <main className="min-h-screen bg-background">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-          <div className="mb-12">
-            <h1 className="text-5xl font-bold mb-4">Discover Essays</h1>
-            <p className="text-muted-foreground text-lg">Explore thoughtful writing from writers around the world</p>
+      <main className="min-h-screen bg-background pb-20">
+        {/* Header Hero Banner */}
+        <section className="bg-secondary/40 border-b border-border/80 py-12 sm:py-16">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="max-w-3xl">
+              <div className="inline-flex items-center gap-2 px-3 py-1 bg-primary/10 border border-primary/20 text-primary rounded-full text-xs font-semibold uppercase tracking-wider mb-4">
+                <Sparkles size={13} /> Curated Reading Feed
+              </div>
+              <h1 className="font-serif text-4xl sm:text-5xl font-extrabold text-foreground tracking-tight mb-4">
+                Discover Thoughtful Writing
+              </h1>
+              <p className="text-muted-foreground text-base sm:text-lg leading-relaxed">
+                Explore deep dives, essays, and stories crafted by writers around the world on technology, philosophy, design, and society.
+              </p>
+            </div>
           </div>
+        </section>
 
-          <div className="mb-8 relative">
-            <Search className="absolute left-3 top-3 text-muted-foreground" size={20} />
-            <input
-              type="text"
-              placeholder="Search essays..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-4 py-3 border border-border rounded-lg bg-secondary focus:outline-none focus:ring-2 focus:ring-primary"
-            />
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-8">
+          {/* Interactive Search Bar & Hotkey Bar */}
+          <div className="mb-8 relative max-w-3xl">
+            <div className="relative flex items-center">
+              <Search className="absolute left-4 text-muted-foreground" size={18} />
+              <input
+                ref={searchInputRef}
+                type="text"
+                placeholder="Search by title, topic, or keyword..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full pl-11 pr-24 py-3.5 bg-card border border-border rounded-xl text-foreground text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all shadow-xs"
+              />
+              <div className="absolute right-3 flex items-center gap-2">
+                {searchQuery && (
+                  <button
+                    onClick={() => setSearchQuery('')}
+                    className="p-1 text-muted-foreground hover:text-foreground rounded-full"
+                  >
+                    <X size={16} />
+                  </button>
+                )}
+                <kbd className="hidden sm:inline-flex items-center gap-0.5 text-[11px] font-mono font-medium text-muted-foreground bg-secondary border border-border px-2 py-1 rounded-md">
+                  <span className="text-xs">⌘</span>K
+                </kbd>
+              </div>
+            </div>
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
-            <aside className="lg:col-span-1">
-              <div className="mb-8 bg-secondary p-4 rounded-lg">
-                <h3 className="font-semibold mb-4">Sort By</h3>
-                <div className="space-y-2">
+            {/* Sidebar Filters */}
+            <aside className="lg:col-span-1 space-y-6">
+              {/* Sort By Toggle */}
+              <div className="bg-card border border-border p-5 rounded-xl shadow-xs">
+                <h3 className="font-bold text-xs uppercase tracking-wider text-muted-foreground mb-3 flex items-center gap-2">
+                  <SlidersHorizontal size={14} /> Sort Feed
+                </h3>
+                <div className="grid grid-cols-2 gap-1.5 p-1 bg-secondary rounded-lg">
                   {(['recent', 'trending'] as const).map((sort) => (
-                    <label key={sort} className="flex items-center gap-2 cursor-pointer">
-                      <input type="radio" checked={sortBy === sort} onChange={() => setSortBy(sort)} className="w-4 h-4" />
-                      <span className="text-sm capitalize">{sort}</span>
-                    </label>
-                  ))}
-                </div>
-              </div>
-              <div className="mb-8 bg-secondary p-4 rounded-lg">
-                <h3 className="font-semibold mb-4">Categories</h3>
-                <div className="space-y-2">
-                  {categories.map((category) => (
-                    <button key={category} onClick={() => setSelectedCategory(category)} className={`block w-full text-left px-3 py-2 rounded-lg text-sm ${selectedCategory === category ? 'bg-primary text-primary-foreground' : 'hover:bg-border'}`}>
-                      {category}
+                    <button
+                      key={sort}
+                      onClick={() => setSortBy(sort)}
+                      className={`py-1.5 rounded-md text-xs font-semibold capitalize transition-all ${
+                        sortBy === sort
+                          ? 'bg-card text-foreground shadow-xs'
+                          : 'text-muted-foreground hover:text-foreground'
+                      }`}
+                    >
+                      {sort === 'trending' ? '🔥 Trending' : '✨ Recent'}
                     </button>
                   ))}
                 </div>
               </div>
-              <div className="bg-secondary p-4 rounded-lg">
-                <h3 className="font-semibold mb-4">Tags</h3>
-                <div className="flex flex-wrap gap-2">
-                  {allTags.map((tag) => (
-                    <button key={tag} onClick={() => toggleTag(tag)} className={`px-3 py-1 rounded-full text-xs font-medium ${selectedTags.includes(tag) ? 'bg-primary text-primary-foreground' : 'bg-border hover:bg-primary hover:text-primary-foreground'}`}>
-                      {tag}
-                    </button>
-                  ))}
+
+              {/* Categories */}
+              <div className="bg-card border border-border p-5 rounded-xl shadow-xs">
+                <h3 className="font-bold text-xs uppercase tracking-wider text-muted-foreground mb-3">
+                  Categories
+                </h3>
+                <div className="space-y-1">
+                  {categories.map((category) => {
+                    const isSelected = selectedCategory === category;
+                    return (
+                      <button
+                        key={category}
+                        onClick={() => setSelectedCategory(category)}
+                        className={`relative w-full text-left px-3.5 py-2 rounded-lg text-xs font-semibold transition-all ${
+                          isSelected
+                            ? 'bg-primary text-primary-foreground shadow-xs'
+                            : 'text-muted-foreground hover:bg-secondary hover:text-foreground'
+                        }`}
+                      >
+                        {category}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Tags */}
+              <div className="bg-card border border-border p-5 rounded-xl shadow-xs">
+                <h3 className="font-bold text-xs uppercase tracking-wider text-muted-foreground mb-3">
+                  Filter by Tag
+                </h3>
+                <div className="flex flex-wrap gap-1.5">
+                  {allTags.map((tag) => {
+                    const isSelected = selectedTags.includes(tag);
+                    return (
+                      <button
+                        key={tag}
+                        onClick={() => toggleTag(tag)}
+                        className={`px-2.5 py-1 rounded-full text-xs font-medium transition-all ${
+                          isSelected
+                            ? 'bg-primary text-primary-foreground shadow-xs'
+                            : 'bg-secondary text-muted-foreground hover:bg-muted hover:text-foreground'
+                        }`}
+                      >
+                        #{tag}
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
             </aside>
 
+            {/* Posts Content Feed */}
             <div className="lg:col-span-3">
               {loading ? (
-                <p className="text-center py-12 text-muted-foreground">Loading essays...</p>
+                <div className="space-y-5">
+                  {[1, 2, 3].map((n) => (
+                    <div
+                      key={n}
+                      className="bg-card border border-border p-6 rounded-xl space-y-4 skeleton-shimmer"
+                    >
+                      <div className="h-4 bg-muted/60 rounded-md w-1/4" />
+                      <div className="h-6 bg-muted/80 rounded-md w-3/4" />
+                      <div className="h-4 bg-muted/50 rounded-md w-full" />
+                      <div className="h-4 bg-muted/50 rounded-md w-2/3" />
+                    </div>
+                  ))}
+                </div>
               ) : posts.length === 0 ? (
-                <p className="text-center py-12 text-muted-foreground">No essays found.</p>
+                <div className="text-center py-16 px-6 bg-card border border-border rounded-xl">
+                  <div className="w-12 h-12 rounded-full bg-secondary text-muted-foreground flex items-center justify-center mx-auto mb-4 text-xl">
+                    🔍
+                  </div>
+                  <h3 className="font-serif text-xl font-bold mb-2 text-foreground">No essays found</h3>
+                  <p className="text-muted-foreground text-sm mb-6 max-w-sm mx-auto">
+                    Try adjusting your search query or switching categories to explore more stories.
+                  </p>
+                  <button
+                    onClick={() => {
+                      setSearchQuery('');
+                      setSelectedCategory('All');
+                      setSelectedTags([]);
+                    }}
+                    className="px-4 py-2 bg-secondary text-foreground text-xs font-semibold rounded-lg hover:bg-muted transition-colors"
+                  >
+                    Reset Filters
+                  </button>
+                </div>
               ) : (
                 <div className="space-y-6">
-                  {posts.map((post) => (
-                    <article key={post.id} className="bg-card border border-border rounded-lg overflow-hidden hover:border-primary transition-colors">
-                      <div className="flex flex-col md:flex-row gap-6 p-6">
-                        {post.featured_image && (
-                          <div className="md:w-48 flex-shrink-0">
-                            <img src={post.featured_image} alt={post.title} className="w-full h-32 md:h-40 object-cover rounded-lg" />
-                          </div>
-                        )}
-                        <div className="flex-1">
-                          {post.author && (
-                            <div className="flex items-center gap-3 mb-3">
-                              <img src={post.author.avatar} alt={post.author.name} className="w-8 h-8 rounded-full object-cover" />
+                  <AnimatePresence>
+                    {posts.map((post) => {
+                      const isBookmarked = bookmarkedPosts.includes(post.id);
+                      return (
+                        <motion.article
+                          key={post.id}
+                          initial={{ opacity: 0, y: 12 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          exit={{ opacity: 0, scale: 0.98 }}
+                          whileHover={{ y: -2, scale: 1.005 }}
+                          transition={{ duration: 0.25 }}
+                          className="group bg-card border border-border/80 hover:border-primary/50 rounded-2xl overflow-hidden shadow-xs hover:shadow-xl transition-all duration-300"
+                        >
+                          <div className="flex flex-col md:flex-row gap-6 p-6 sm:p-7">
+                            {post.featured_image && (
+                              <div className="md:w-56 h-40 md:h-auto flex-shrink-0 relative overflow-hidden rounded-xl bg-secondary">
+                                <img
+                                  src={post.featured_image}
+                                  alt={post.title}
+                                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                                />
+                              </div>
+                            )}
+                            <div className="flex-1 flex flex-col justify-between">
                               <div>
-                                <p className="font-medium text-sm">{post.author.name}</p>
-                                <p className="text-xs text-muted-foreground">{formatDate(post.created_at)} • {post.read_time} min read</p>
+                                {post.author && (
+                                  <div className="flex items-center gap-3 mb-3">
+                                    <AuthorHoverCard author={post.author}>
+                                      <div className="flex items-center gap-2">
+                                        <img
+                                          src={post.author.avatar || '/placeholder-user.jpg'}
+                                          alt={post.author.name}
+                                          className="w-8 h-8 rounded-full object-cover ring-1 ring-border"
+                                        />
+                                        <span className="font-semibold text-xs text-foreground hover:text-primary transition-colors">
+                                          {post.author.name}
+                                        </span>
+                                      </div>
+                                    </AuthorHoverCard>
+
+                                    <span className="text-muted-foreground text-xs">•</span>
+                                    <span className="text-xs text-muted-foreground">
+                                      {formatDate(post.created_at)}
+                                    </span>
+                                    <span className="text-muted-foreground text-xs hidden sm:inline">•</span>
+
+                                    <div className="hidden sm:inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/50 px-2 py-0.5 rounded-full">
+                                      <Clock size={11} /> {post.read_time} min read
+                                    </div>
+                                  </div>
+                                )}
+
+                                <Link href={`/posts/${post.id}`} className="block group/link">
+                                  <h2 className="font-serif text-xl sm:text-2xl font-bold mb-2.5 text-foreground group-hover/link:text-primary transition-colors leading-snug">
+                                    {post.title}
+                                  </h2>
+                                </Link>
+
+                                <p className="text-muted-foreground text-sm line-clamp-2 leading-relaxed mb-4">
+                                  {post.excerpt}
+                                </p>
+                              </div>
+
+                              <div>
+                                <div className="flex flex-wrap gap-1.5 mb-4">
+                                  <span className="text-[11px] font-semibold bg-secondary text-foreground px-2.5 py-0.5 rounded-full">
+                                    {post.category}
+                                  </span>
+                                  {post.tags.slice(0, 3).map((tag) => (
+                                    <span
+                                      key={tag}
+                                      className="text-[11px] text-muted-foreground bg-secondary/60 px-2 py-0.5 rounded-full"
+                                    >
+                                      #{tag}
+                                    </span>
+                                  ))}
+                                </div>
+
+                                <div className="flex items-center justify-between pt-3 border-t border-border/60">
+                                  <div className="flex items-center gap-3">
+                                    {/* Medium Style Clap Button */}
+                                    <ClapButton
+                                      initialCount={post.likes}
+                                      onClap={() => api.likePost(post.id)}
+                                    />
+
+                                    <Link
+                                      href={`/posts/${post.id}#comments`}
+                                      className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground px-2.5 py-1.5 rounded-full hover:bg-secondary transition-colors"
+                                    >
+                                      <MessageSquare size={16} />
+                                      <span className="font-medium">{post.comments}</span>
+                                    </Link>
+                                  </div>
+
+                                  <div className="flex items-center gap-1">
+                                    {/* Share Button */}
+                                    <button
+                                      onClick={(e) => handleShare(post.id, post.title, e)}
+                                      className="p-2 text-muted-foreground hover:text-foreground hover:bg-secondary rounded-full transition-colors"
+                                      title="Share link"
+                                    >
+                                      {copiedId === post.id ? (
+                                        <Check size={17} className="text-emerald-500" />
+                                      ) : (
+                                        <Share2 size={17} />
+                                      )}
+                                    </button>
+
+                                    {/* Morphing Spring Bookmark Button */}
+                                    <motion.button
+                                      whileTap={{ scale: 0.8 }}
+                                      onClick={(e) => toggleBookmark(post.id, e)}
+                                      className={`p-2 rounded-full transition-colors ${
+                                        isBookmarked
+                                          ? 'text-amber-500 bg-amber-50 dark:bg-amber-950/40'
+                                          : 'text-muted-foreground hover:text-foreground hover:bg-secondary'
+                                      }`}
+                                      title={isBookmarked ? 'Saved' : 'Save essay'}
+                                    >
+                                      <Bookmark
+                                        size={18}
+                                        className={isBookmarked ? 'fill-amber-500 text-amber-500' : ''}
+                                      />
+                                    </motion.button>
+                                  </div>
+                                </div>
                               </div>
                             </div>
-                          )}
-                          <Link href={`/posts/${post.id}`}>
-                            <h2 className="text-xl font-bold mb-2 hover:text-primary">{post.title}</h2>
-                          </Link>
-                          <p className="text-foreground mb-4 line-clamp-2">{post.excerpt}</p>
-                          <div className="flex flex-wrap gap-2 mb-4">
-                            {post.tags.slice(0, 3).map((tag) => (
-                              <span key={tag} className="text-xs bg-secondary px-2 py-1 rounded-full">{tag}</span>
-                            ))}
                           </div>
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                              <button onClick={() => toggleLike(post.id)} className={`flex items-center gap-1 hover:text-primary ${likedPosts.includes(post.id) ? 'text-primary' : ''}`}>
-                                <Heart size={18} fill={likedPosts.includes(post.id) ? 'currentColor' : 'none'} />
-                                <span>{post.likes}</span>
-                              </button>
-                              <div className="flex items-center gap-1"><MessageCircle size={18} /><span>{post.comments}</span></div>
-                              <div className="flex items-center gap-1"><Share2 size={18} /><span>{post.shares}</span></div>
-                            </div>
-                            <button onClick={() => toggleBookmark(post.id)} className={`p-2 hover:bg-secondary rounded-lg ${bookmarkedPosts.includes(post.id) ? 'text-primary' : 'text-muted-foreground'}`}>
-                              <Bookmark size={20} fill={bookmarkedPosts.includes(post.id) ? 'currentColor' : 'none'} />
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    </article>
-                  ))}
+                        </motion.article>
+                      );
+                    })}
+                  </AnimatePresence>
                 </div>
               )}
             </div>

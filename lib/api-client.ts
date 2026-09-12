@@ -1,6 +1,8 @@
+import type { Post } from './posts';
+
 const BASE = '/api';
 
-async function request<T>(path: string, options?: RequestInit): Promise<T> {
+async function request<T = any>(path: string, options?: RequestInit): Promise<T> {
   const res = await fetch(`${BASE}${path}`, {
     ...options,
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -12,62 +14,62 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
 
 export const api = {
   signup: (body: { name: string; email: string; password: string }) =>
-    request('/auth/signup', { method: 'POST', body: JSON.stringify(body) }),
+    request<{ user: any }>('/auth/signup', { method: 'POST', body: JSON.stringify(body) }),
 
   login: (body: { email: string; password: string; rememberMe?: boolean }) =>
-    request('/auth/login', { method: 'POST', body: JSON.stringify(body) }),
+    request<{ user: any }>('/auth/login', { method: 'POST', body: JSON.stringify(body) }),
 
-  logout: () => request('/auth/logout', { method: 'POST' }),
+  logout: () => request<{ success: boolean }>('/auth/logout', { method: 'POST' }),
 
   changePassword: (body: { currentPassword: string; newPassword: string }) =>
-    request('/auth/change-password', { method: 'POST', body: JSON.stringify(body) }),
+    request<{ success: boolean }>('/auth/change-password', { method: 'POST', body: JSON.stringify(body) }),
 
-  getMe: () => request('/users/me'),
+  getMe: () => request<{ user: any }>('/users/me'),
 
   updateMe: (body: { name?: string; bio?: string; avatar?: string }) =>
-    request('/users/me', { method: 'PATCH', body: JSON.stringify(body) }),
+    request<{ user: any }>('/users/me', { method: 'PATCH', body: JSON.stringify(body) }),
 
   updateSettings: (body: {
     isPrivate?: boolean;
     emailNotifications?: boolean;
     pushNotifications?: boolean;
-  }) => request('/users/me/settings', { method: 'PATCH', body: JSON.stringify(body) }),
+  }) => request<{ success: boolean }>('/users/me/settings', { method: 'PATCH', body: JSON.stringify(body) }),
 
-  deleteMe: () => request('/users/me', { method: 'DELETE' }),
+  deleteMe: () => request<{ success: boolean }>('/users/me', { method: 'DELETE' }),
 
-  getMyPosts: () => request('/users/me/posts'),
+  getMyPosts: () => request<{ posts: Post[] }>('/users/me/posts'),
 
-  getUser: (id: string) => request(`/users/${id}`),
+  getUser: (id: string) => request<{ user: any }>(`/users/${id}`),
 
-  followUser: (id: string) => request(`/users/${id}/follow`, { method: 'POST' }),
+  followUser: (id: string) => request<{ following: boolean }>(`/users/${id}/follow`, { method: 'POST' }),
 
   getPosts: (params?: Record<string, string>) => {
     const qs = params ? '?' + new URLSearchParams(params).toString() : '';
-    return request(`/posts${qs}`);
+    return request<{ posts: Post[] }>(`/posts${qs}`);
   },
 
-  getPost: (id: string) => request(`/posts/${id}`),
+  getPost: (id: string) => request<{ post: Post }>(`/posts/${id}`),
 
   createPost: (body: Record<string, unknown>) =>
-    request('/posts', { method: 'POST', body: JSON.stringify(body) }),
+    request<{ post: Post }>('/posts', { method: 'POST', body: JSON.stringify(body) }),
 
   updatePost: (id: string, body: Record<string, unknown>) =>
-    request(`/posts/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+    request<{ post: Post }>(`/posts/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
 
-  deletePost: (id: string) => request(`/posts/${id}`, { method: 'DELETE' }),
+  deletePost: (id: string) => request<{ success: boolean }>(`/posts/${id}`, { method: 'DELETE' }),
 
-  likePost: (id: string) => request(`/posts/${id}/like`, { method: 'POST' }),
+  likePost: (id: string) => request<{ liked: boolean }>(`/posts/${id}/like`, { method: 'POST' }),
 
-  bookmarkPost: (id: string) => request(`/posts/${id}/bookmark`, { method: 'POST' }),
+  bookmarkPost: (id: string) => request<{ bookmarked: boolean }>(`/posts/${id}/bookmark`, { method: 'POST' }),
 
   reactPost: (id: string, emoji: string) =>
-    request(`/posts/${id}/reactions`, { method: 'POST', body: JSON.stringify({ emoji }) }),
+    request<{ reactions: Record<string, number> }>(`/posts/${id}/reactions`, { method: 'POST', body: JSON.stringify({ emoji }) }),
 
-  getComments: (id: string) => request(`/posts/${id}/comments`),
+  getComments: (id: string) => request<{ comments: any[] }>(`/posts/${id}/comments`),
 
   addComment: (id: string, text: string) =>
-    request(`/posts/${id}/comments`, { method: 'POST', body: JSON.stringify({ text }) }),
+    request<{ comment: any }>(`/posts/${id}/comments`, { method: 'POST', body: JSON.stringify({ text }) }),
 
   likeComment: (commentId: string) =>
-    request(`/comments/${commentId}/like`, { method: 'POST' }),
+    request<{ liked: boolean }>(`/comments/${commentId}/like`, { method: 'POST' }),
 };

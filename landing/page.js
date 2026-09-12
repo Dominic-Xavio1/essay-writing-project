@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { Heart, BookMarked, TrendingUp, Share2, MessageSquare, Sparkles } from 'lucide-react';
 import Image from 'next/image';
+import Button from '@/components/ui/customButton';
 import {motion} from 'framer-motion';
 export default function Home() {
   return (
@@ -29,8 +30,8 @@ export default function Home() {
           {/* Main nav */}
           <nav className="h-16 flex items-center justify-between">
             <Link href="/" className="flex items-center gap-2">
-                <Image src="/agahozo.png" alt="EssayHub" width={53} height={53} />
-              <span className="font-bold text-foreground">EssayHub</span>
+                <Image src="/agahozo.png" alt="ASYV Writing" width={42} height={42} className="rounded-md" />
+              <span className="font-serif text-lg font-bold text-foreground">ASYV Writing</span>
             </Link>
 
             <div className="hidden md:flex items-center gap-8">
@@ -49,15 +50,12 @@ export default function Home() {
             </div>
 
             <div className="flex items-center gap-3">
-              <Link href="/auth/login" className="text-foreground/80 hover:text-foreground text-sm font-medium transition-colors hidden sm:block">
+              <Button variant="green" href="/auth/login">
                 Sign In
-              </Link>
-              <Link
-                href="/auth/signup"
-                className="px-5 py-2 bg-accent text-primary-foreground rounded-lg text-sm font-semibold hover:bg-accent/90 transition-colors"
-              >
+              </Button>
+              <Button variant="accent" href="/auth/signup">
                 Start Free
-              </Link>
+              </Button>
             </div>
           </nav>
         </div>
@@ -100,18 +98,12 @@ export default function Home() {
               </p>
 
               <div className="flex flex-col sm:flex-row gap-4">
-                <Link
-                  href="/create"
-                  className="inline-flex items-center justify-center px-6 py-3 bg-primary text-primary-foreground rounded-lg font-semibold hover:bg-primary/90 transition-colors"
-                >
+                <Button variant="green" size="lg" href="/create">
                   Start Writing
-                </Link>
-                <Link
-                  href="/posts"
-                  className="inline-flex items-center justify-center px-6 py-3 bg-accent text-primary-foreground rounded-lg font-semibold hover:bg-accent/90 transition-colors"
-                >
+                </Button>
+                <Button variant="accent" size="lg" href="/posts">
                   Explore Now
-                </Link>
+                </Button>
               </div>
             </div>
 

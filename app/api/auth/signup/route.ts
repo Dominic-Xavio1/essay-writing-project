@@ -1,7 +1,7 @@
 import { ok, err, parseBody } from '@/lib/api-utils';
 import { hashPassword, loginUser } from '@/lib/auth';
 import { findUserByEmail, createUser, formatUser } from '@/lib/services/users';
-export async function POST(req) {
+export async function POST(req: Request) {
   const body = await req.json()
   if (!body?.name || !body?.email || !body?.password) {
     return err('Name, email, and password are required');

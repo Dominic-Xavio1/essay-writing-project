@@ -7,6 +7,7 @@ import { Header } from '@/components/shared/Header';
 import { Footer } from '@/components/shared/Footer';
 import { Eye, EyeOff } from 'lucide-react';
 import { api } from '@/lib/api-client';
+import { Button } from '@/components/ui/customButton';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -94,13 +95,15 @@ export default function LoginPage() {
                 </Link>
               </div>
 
-              <button
+              <Button
                 type="submit"
                 disabled={isLoading}
-                className="w-full py-3 bg-primary text-primary-foreground rounded-lg font-semibold hover:opacity-90 disabled:opacity-50 transition-opacity"
+                variant="accent"
+                size="lg"
+                className="w-full"
               >
                 {isLoading ? 'Signing in...' : 'Sign In'}
-              </button>
+              </Button>
             </form>
 
             <div className="my-6 border-t border-border"></div>

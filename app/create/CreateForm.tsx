@@ -6,9 +6,20 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { Header } from '@/components/shared/Header';
 import { Footer } from '@/components/shared/Footer';
 import { RichTextEditor } from '@/components/editor/RichTextEditor';
-import { categories } from '@/lib/posts';
 import { api } from '@/lib/api-client';
-import { Upload, X } from 'lucide-react';
+import { Button } from '@/components/ui/customButton';
+import {
+  Upload,
+  X,
+  Sparkles,
+  Clock,
+  Check,
+  ImageIcon,
+  Tag as TagIcon,
+  ArrowLeft,
+  BookOpen,
+} from 'lucide-react';
+import { toast } from 'sonner';
 
 export function CreateForm() {
   const router = useRouter();
@@ -23,19 +34,33 @@ export function CreateForm() {
   const [tagInput, setTagInput] = useState('');
   const [featuredImage, setFeaturedImage] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
 
   useEffect(() => {
     if (!editId) return;
-    api.getPost(editId).then((data: { post: Record<string, unknown> }) => {
-      const p = data.post;
-      setTitle(p.title as string);
-      setExcerpt(p.excerpt as string);
-      setContent(p.content as string);
-      setCategory(p.category as string);
-      setTags((p.tags as string[]) || []);
-      setFeaturedImage((p.featured_image as string) || null);
-    }).catch(() => alert('Failed to load essay'));
+    api
+      .getPost(editId)
+      .then((data: { post: Record<string, unknown> }) => {
+        const p = data.post;
+        setTitle((p.title as string) || '');
+        setExcerpt((p.excerpt as string) || '');
+        setContent((p.content as string) || '');
+        setCategory((p.category as string) || 'Technology');
+        setTags((p.tags as string[]) || []);
+        setFeaturedImage((p.featured_image as string) || null);
+      })
+      .catch(() => toast.error('Failed to load essay'));
   }, [editId]);
+
+  // Strip HTML tags for clean word & character count
+  const plainTextContent = content.replace(/<[^>]*>/g, '').trim();
+  const characterCount = plainTextContent.length;
+  const wordCount = plainTextContent ? plainTextContent.split(/\s+/).length : 0;
+  const estimatedReadTime = Math.max(1, Math.ceil(wordCount / 200));
+
+  // Word goal target calculation for SVG progress ring (target: 500 words)
+  const targetWords = 500;
+  const wordProgress = Math.min(100, Math.round((wordCount / targetWords) * 100));
 
   const handleAddTag = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter' && tagInput.trim()) {
@@ -45,22 +70,46 @@ export function CreateForm() {
     }
   };
 
+  const handleImageFile = (file: File) => {
+    if (!file.type.startsWith('image/')) {
+      toast.error('Please upload a valid image file');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = (event) => setFeaturedImage(event.target?.result as string);
+    reader.readAsDataURL(file);
+    toast.success('Cover image uploaded');
+  };
+
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onload = (event) => setFeaturedImage(event.target?.result as string);
-      reader.readAsDataURL(file);
-    }
+    if (file) handleImageFile(file);
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+    const file = e.dataTransfer.files?.[0];
+    if (file) handleImageFile(file);
   };
 
   const submit = async (status: 'draft' | 'published') => {
     if (!title.trim()) {
-      alert('Please add a title');
+      toast.error('Please add a title to your essay');
       return;
     }
     if (status === 'published' && (!excerpt.trim() || !content.trim())) {
-      alert('Please fill in title, excerpt, and content');
+      toast.error('Please complete title, summary excerpt, and content before publishing');
       return;
     }
 
@@ -77,10 +126,10 @@ export function CreateForm() {
       };
       if (editId) {
         await api.updatePost(editId, body);
-        alert(status === 'draft' ? 'Draft saved!' : 'Essay updated!');
+        toast.success(status === 'draft' ? 'Draft updated!' : 'Essay updated and live!');
       } else {
         await api.createPost(body);
-        alert(status === 'draft' ? 'Draft saved!' : 'Essay published successfully!');
+        toast.success(status === 'draft' ? 'Draft saved!' : 'Essay published successfully!');
         if (status === 'published') {
           setTitle('');
           setExcerpt('');
@@ -92,7 +141,7 @@ export function CreateForm() {
       }
       if (status === 'published') router.push('/dashboard');
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'Failed to save');
+      toast.error(err instanceof Error ? err.message : 'Failed to save essay');
     } finally {
       setSaving(false);
     }
@@ -101,64 +150,227 @@ export function CreateForm() {
   return (
     <>
       <Header />
-      <main className="min-h-screen bg-background">
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-          <div className="mb-8">
-            <h1 className="text-5xl font-bold mb-4">{editId ? 'Edit Essay' : 'Write an Essay'}</h1>
-            <p className="text-muted-foreground text-lg">Share your thoughts, stories, and expertise with the world</p>
+      <main className="min-h-screen bg-background pb-28">
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
+          {/* Header Bar */}
+          <div className="flex items-center justify-between gap-4 mb-8 pb-6 border-b border-border/80">
+            <div>
+              <div className="inline-flex items-center gap-1.5 text-xs font-semibold text-primary bg-primary/10 px-3 py-1 rounded-full uppercase tracking-wider mb-2">
+                <Sparkles size={13} /> Editorial Studio
+              </div>
+              <h1 className="font-serif text-3xl sm:text-4xl font-extrabold text-foreground tracking-tight">
+                {editId ? 'Edit Essay' : 'Draft New Essay'}
+              </h1>
+            </div>
+
+            {/* Live Progress Ring Counter */}
+            <div className="flex items-center gap-4 bg-card border border-border px-4 py-2 rounded-2xl shadow-xs">
+              <div className="relative w-10 h-10 flex items-center justify-center">
+                <svg className="w-10 h-10 transform -rotate-90">
+                  <circle
+                    cx="20"
+                    cy="20"
+                    r="16"
+                    stroke="currentColor"
+                    strokeWidth="3.5"
+                    className="text-secondary"
+                    fill="transparent"
+                  />
+                  <circle
+                    cx="20"
+                    cy="20"
+                    r="16"
+                    stroke="currentColor"
+                    strokeWidth="3.5"
+                    className="text-emerald-600 transition-all duration-300"
+                    fill="transparent"
+                    strokeDasharray="100"
+                    strokeDashoffset={100 - wordProgress}
+                    strokeLinecap="round"
+                  />
+                </svg>
+                <span className="absolute text-[10px] font-bold text-foreground">{wordProgress}%</span>
+              </div>
+              <div>
+                <p className="text-xs font-bold text-foreground">{wordCount} words</p>
+                <p className="text-[11px] text-muted-foreground flex items-center gap-1">
+                  <Clock size={11} /> ~{estimatedReadTime}m read
+                </p>
+              </div>
+            </div>
           </div>
 
           <form className="space-y-8" onSubmit={(e) => e.preventDefault()}>
+            {/* Title Input */}
             <div>
-              <label className="block text-sm font-semibold mb-2">Essay Title</label>
-              <input type="text" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Your compelling title here..." className="w-full px-4 py-3 text-lg font-semibold border border-border rounded-lg bg-secondary focus:outline-none focus:ring-2 focus:ring-primary" />
+              <input
+                type="text"
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                placeholder="Title of your essay..."
+                className="w-full font-serif text-3xl sm:text-4xl font-bold bg-transparent border-b border-border/80 pb-3 text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:border-primary transition-all"
+              />
             </div>
+
+            {/* Excerpt Input */}
             <div>
-              <label className="block text-sm font-semibold mb-2">Excerpt</label>
-              <textarea value={excerpt} onChange={(e) => setExcerpt(e.target.value)} placeholder="A brief summary..." rows={2} className="w-full px-4 py-3 border border-border rounded-lg bg-secondary focus:outline-none focus:ring-2 focus:ring-primary resize-none" />
-              <p className="text-xs text-muted-foreground mt-1">{excerpt.length}/200 characters</p>
+              <label className="block text-xs uppercase tracking-wider font-bold text-muted-foreground mb-2">
+                Summary Excerpt
+              </label>
+              <textarea
+                value={excerpt}
+                onChange={(e) => setExcerpt(e.target.value)}
+                placeholder="Write a brief, engaging summary of your essay..."
+                rows={2}
+                maxLength={240}
+                className="w-full px-4 py-3 bg-card border border-border rounded-xl text-foreground text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary resize-none shadow-xs"
+              />
+              <p className="text-[11px] text-muted-foreground mt-1 text-right">
+                {excerpt.length}/240 characters
+              </p>
             </div>
+
+            {/* Drag & Drop Cover Image Uploader */}
             <div>
-              <label className="block text-sm font-semibold mb-2">Featured Image</label>
+              <label className="block text-xs uppercase tracking-wider font-bold text-muted-foreground mb-2">
+                Cover Image
+              </label>
               {featuredImage ? (
-                <div className="relative inline-block mb-4 w-full">
-                  <img src={featuredImage} alt="Featured" className="h-48 w-full object-cover rounded-lg" />
-                  <button type="button" onClick={() => setFeaturedImage(null)} className="absolute top-2 right-2 p-1 bg-primary text-primary-foreground rounded-full"><X size={20} /></button>
+                <div className="relative w-full h-56 sm:h-72 rounded-2xl overflow-hidden group border border-border shadow-xs">
+                  <img src={featuredImage} alt="Cover Preview" className="w-full h-full object-cover" />
+                  <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setFeaturedImage(null)}
+                      className="px-4 py-2 bg-rose-600 text-white text-xs font-semibold rounded-xl hover:bg-rose-700 transition-colors flex items-center gap-1.5 shadow-sm"
+                    >
+                      <X size={16} /> Remove Cover
+                    </button>
+                  </div>
                 </div>
               ) : (
-                <label className="block border-2 border-dashed border-border rounded-lg p-8 text-center hover:border-primary cursor-pointer">
-                  <Upload size={32} className="mx-auto mb-2 text-muted-foreground" />
-                  <div className="font-semibold">Click to upload featured image</div>
-                  <input type="file" accept="image/*" onChange={handleImageUpload} className="hidden" />
+                <label
+                  onDragOver={handleDragOver}
+                  onDragLeave={handleDragLeave}
+                  onDrop={handleDrop}
+                  className={`block border-2 border-dashed rounded-2xl p-8 sm:p-12 text-center cursor-pointer transition-all ${
+                    isDragging
+                      ? 'border-primary bg-primary/5 scale-[1.01]'
+                      : 'border-border/90 bg-card hover:border-primary/50'
+                  }`}
+                >
+                  <div className="w-12 h-12 rounded-full bg-secondary text-primary flex items-center justify-center mx-auto mb-3">
+                    <Upload size={22} />
+                  </div>
+                  <p className="font-bold text-sm text-foreground mb-1">
+                    Drag and drop your cover image here
+                  </p>
+                  <p className="text-xs text-muted-foreground mb-4">
+                    Supports PNG, JPG, WebP up to 10MB
+                  </p>
+                  <span className="inline-block px-4 py-2 bg-secondary text-foreground text-xs font-semibold rounded-xl hover:bg-muted transition-colors">
+                    Browse File
+                  </span>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={handleImageUpload}
+                    className="hidden"
+                  />
                 </label>
               )}
             </div>
+
+            {/* Rich Text Editorial Editor */}
             <div>
-              <label className="block text-sm font-semibold mb-2">Content</label>
+              <label className="block text-xs uppercase tracking-wider font-bold text-muted-foreground mb-2">
+                Essay Body
+              </label>
               <RichTextEditor value={content} onChange={setContent} />
             </div>
-            <div>
-              <label className="block text-sm font-semibold mb-2">Category</label>
-              <select value={category} onChange={(e) => setCategory(e.target.value)} className="w-full px-4 py-3 border border-border rounded-lg bg-secondary">
-                {categories.filter((c) => c !== 'All').map((cat) => (<option key={cat} value={cat}>{cat}</option>))}
-              </select>
-            </div>
-            <div>
-              <label className="block text-sm font-semibold mb-2">Tags</label>
-              <input type="text" value={tagInput} onChange={(e) => setTagInput(e.target.value)} onKeyDown={handleAddTag} placeholder="Type tag and press Enter..." className="w-full px-4 py-3 border border-border rounded-lg bg-secondary mb-3" />
-              <div className="flex flex-wrap gap-2">
-                {tags.map((tag) => (
-                  <span key={tag} className="inline-flex items-center gap-2 bg-primary text-primary-foreground px-3 py-1 rounded-full text-sm">
-                    {tag}
-                    <button type="button" onClick={() => setTags(tags.filter((t) => t !== tag))}><X size={16} /></button>
-                  </span>
-                ))}
+
+            {/* Category & Tags Grid */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 bg-card border border-border p-6 rounded-2xl shadow-xs">
+              <div>
+                <label className="block text-xs uppercase tracking-wider font-bold text-muted-foreground mb-2">
+                  Category
+                </label>
+                <select
+                  value={category}
+                  onChange={(e) => setCategory(e.target.value)}
+                  className="w-full px-4 py-3 bg-secondary border border-border rounded-xl text-foreground text-sm font-medium focus:outline-none focus:ring-2 focus:ring-primary cursor-pointer"
+                >
+                  {categories
+                    .filter((c) => c !== 'All')
+                    .map((cat) => (
+                      <option key={cat} value={cat}>
+                        {cat}
+                      </option>
+                    ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs uppercase tracking-wider font-bold text-muted-foreground mb-2">
+                  Tags
+                </label>
+                <input
+                  type="text"
+                  value={tagInput}
+                  onChange={(e) => setTagInput(e.target.value)}
+                  onKeyDown={handleAddTag}
+                  placeholder="Add tag & press Enter..."
+                  className="w-full px-4 py-3 bg-secondary border border-border rounded-xl text-foreground text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary mb-3"
+                />
+                <div className="flex flex-wrap gap-1.5">
+                  {tags.map((tag) => (
+                    <span
+                      key={tag}
+                      className="inline-flex items-center gap-1.5 bg-primary text-primary-foreground px-3 py-1 rounded-full text-xs font-semibold"
+                    >
+                      #{tag}
+                      <button
+                        type="button"
+                        onClick={() => setTags(tags.filter((t) => t !== tag))}
+                        className="hover:opacity-80"
+                      >
+                        <X size={14} />
+                      </button>
+                    </span>
+                  ))}
+                </div>
               </div>
             </div>
-            <div className="flex gap-4 pt-8 border-t border-border">
-              <button type="button" onClick={() => submit('draft')} disabled={saving} className="px-6 py-3 border border-border rounded-lg font-semibold hover:bg-secondary disabled:opacity-50">{saving ? 'Saving...' : 'Save as Draft'}</button>
-              <button type="button" onClick={() => submit('published')} disabled={saving} className="flex-1 px-6 py-3 bg-primary text-primary-foreground rounded-lg font-semibold disabled:opacity-50">{saving ? 'Publishing...' : editId ? 'Update Essay' : 'Publish Essay'}</button>
-              <Link href="/dashboard" className="px-6 py-3 border border-border rounded-lg font-semibold hover:bg-secondary">Back to Dashboard</Link>
+
+            {/* Action Buttons Bar */}
+            <div className="flex flex-col sm:flex-row items-center gap-4 pt-6 border-t border-border/80">
+              <Button
+                type="button"
+                variant="green"
+                onClick={() => submit('draft')}
+                disabled={saving}
+                className="w-full sm:w-auto"
+              >
+                {saving ? 'Saving...' : 'Save as Draft'}
+              </Button>
+
+              <Button
+                type="button"
+                variant="accent"
+                onClick={() => submit('published')}
+                disabled={saving}
+                className="w-full sm:flex-1"
+              >
+                {saving ? 'Publishing...' : editId ? 'Update & Publish' : 'Publish Essay'}
+              </Button>
+
+              <Button
+                variant="ghost"
+                href="/dashboard"
+                className="w-full sm:w-auto"
+              >
+                Cancel
+              </Button>
             </div>
           </form>
         </div>

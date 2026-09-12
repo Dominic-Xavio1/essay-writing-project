@@ -7,7 +7,7 @@ import { Header } from '@/components/shared/Header';
 import { Footer } from '@/components/shared/Footer';
 import { Eye, EyeOff, Check, X } from 'lucide-react';
 import { api } from '@/lib/api-client';
-import { toast } from '@/hooks/use-toast';
+import { Button } from '@/components/ui/customButton';
 
 export default function SignupPage() {
   const router = useRouter();
@@ -229,13 +229,15 @@ export default function SignupPage() {
                 </span>
               </label>
 
-              <button
+              <Button
                 type="submit"
                 disabled={isLoading || !passwordStrong || !passwordsMatch}
-                className="w-full py-3 bg-primary text-primary-foreground rounded-lg font-semibold hover:opacity-90 disabled:opacity-50 transition-opacity"
+                variant="accent"
+                size="lg"
+                className="w-full"
               >
                 {isLoading ? 'Creating Account...' : 'Create Account'}
-              </button>
+              </Button>
             </form>
 
             <div className="my-6 border-t border-border"></div>

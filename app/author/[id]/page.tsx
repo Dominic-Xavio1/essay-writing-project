@@ -19,6 +19,8 @@ type AuthorProfile = {
   isFollowing: boolean;
 };
 
+import { Button } from '@/components/ui/customButton';
+
 export default function AuthorPage() {
   const params = useParams();
   const id = params.id as string;
@@ -90,9 +92,12 @@ export default function AuthorPage() {
                 <span><strong>{author.followers}</strong> followers</span>
                 <span><strong>{author.following}</strong> following</span>
               </div>
-              <button onClick={handleFollow} className="px-6 py-2 bg-primary text-primary-foreground rounded-lg font-semibold hover:opacity-90">
+              <Button
+                variant={author.isFollowing ? 'outline' : 'accent'}
+                onClick={handleFollow}
+              >
                 {author.isFollowing ? 'Following' : 'Follow'}
-              </button>
+              </Button>
             </div>
           </div>
 
