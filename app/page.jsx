@@ -186,7 +186,7 @@ export default function Home() {
       </section>
 
       {/* Final CTA Section */}
-      <section className="bg-primary text-primary-foreground py-20 sm:py-28 border-t border-border">
+      <section className="bg-green-800 text-primary-foreground py-20 sm:py-28 border-t border-border">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
           <h2 className="text-4xl sm:text-5xl font-bold mb-6">
             Ready to publish your first essay?
