@@ -1,25 +1,29 @@
 import "dotenv/config";
 import { Pool } from "pg";
 
-console.log(process.env.DATABASE_URL);
-
 const globalForPool = global;
-console.log(globalForPool.pgPool);
-export const pool = globalForPool.pgPool || new Pool({
-    connectionString: process.env.DATABASE_URL,
-    max: 20,
-    idleTimeoutMillis: 30000,
-    connectionTimeoutMillis: 2000,
-    ssl: false
-});
-console.log(pool);
-pool.connect((err, client, release) => {
-  if (err) {
-    console.error("❌ Database connection failed:", err.message);
-  } else {
-    console.log("✅ Database connection established successfully!");
-    release();
-  }
-});
+export const pool =
+  globalForPool.pgPool ||
+  new Pool(
+    process.env.DATABASE_URL
+      ? {
+          connectionString: process.env.DATABASE_URL,
+          max: 20,
+          idleTimeoutMillis: 30000,
+          connectionTimeoutMillis: 5000,
+          ssl: { rejectUnauthorized: false },
+        }
+      : {
+          user: process.env.DB_USER,
+          host: process.env.DB_HOST,
+          database: process.env.DB_NAME,
+          password: process.env.DB_PASSWORD,
+          port: Number(process.env.DB_PORT) || 5432,
+        }
+  );
 
-export default pool;
+if (process.env.NODE_ENV !== "production") {
+  globalForPool.pgPool = pool;
+}
+
+export default pool;

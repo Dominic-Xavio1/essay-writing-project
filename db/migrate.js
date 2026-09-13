@@ -1,14 +1,73 @@
 import "dotenv/config";
 import { Pool } from "pg";
 
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  ssl: false,
-});
+const pool = new Pool(
+  process.env.DATABASE_URL
+    ? {
+        connectionString: process.env.DATABASE_URL,
+        ssl: { rejectUnauthorized: false },
+      }
+    : {
+        user: process.env.DB_USER,
+        host: process.env.DB_HOST,
+        database: process.env.DB_NAME,
+        password: process.env.DB_PASSWORD,
+        port: Number(process.env.DB_PORT) || 5432,
+      }
+);
 
 async function createMissingTables() {
   try {
-    console.log("🔍 Creating missing tables...");
+    console.log("🔍 Creating/verifying all database tables...");
+
+    // Create users table
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS users (
+        id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        name            VARCHAR(255) NOT NULL,
+        email           VARCHAR(255) NOT NULL UNIQUE,
+        password_hash   VARCHAR(255) NOT NULL,
+        avatar          TEXT DEFAULT '',
+        bio             TEXT DEFAULT '',
+        is_private      BOOLEAN DEFAULT FALSE,
+        email_notifications BOOLEAN DEFAULT TRUE,
+        push_notifications  BOOLEAN DEFAULT TRUE,
+        created_at      TIMESTAMPTZ DEFAULT NOW(),
+        updated_at      TIMESTAMPTZ DEFAULT NOW()
+      )
+    `);
+    console.log("✅ Users table verified");
+
+    // Create posts table
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS posts (
+        id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        author_id       UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        title           VARCHAR(500) NOT NULL,
+        excerpt         TEXT DEFAULT '',
+        content         TEXT NOT NULL DEFAULT '',
+        featured_image  TEXT DEFAULT '',
+        category        VARCHAR(100) DEFAULT 'Personal',
+        status          VARCHAR(20) DEFAULT 'draft' CHECK (status IN ('draft', 'published')),
+        read_time       INTEGER DEFAULT 1,
+        shares          INTEGER DEFAULT 0,
+        created_at      TIMESTAMPTZ DEFAULT NOW(),
+        updated_at      TIMESTAMPTZ DEFAULT NOW()
+      )
+    `);
+    console.log("✅ Posts table verified");
+
+    // Create comments table
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS comments (
+        id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        post_id    UUID NOT NULL REFERENCES posts(id) ON DELETE CASCADE,
+        user_id    UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        text       TEXT NOT NULL,
+        created_at TIMESTAMPTZ DEFAULT NOW()
+      )
+    `);
+    console.log("✅ Comments table verified");
 
     // Create likes table if it doesn't exist
     await pool.query(`
