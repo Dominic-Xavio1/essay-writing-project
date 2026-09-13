@@ -98,9 +98,9 @@ export function RichTextEditor({
   };
 
   return (
-    <div className="border border-border/80 rounded-2xl overflow-hidden bg-card shadow-xs">
+    <div className="border border-border/80 rounded-2xl bg-card shadow-xs">
       {/* Sticky Editorial Toolbar */}
-      <div className="sticky top-16 z-30 bg-card/95 backdrop-blur-md border-b border-border/80 p-3 sm:p-4">
+      <div className="sticky top-16 z-20 bg-card border-b border-border/80 p-3 sm:p-4 rounded-t-2xl">
         <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 text-muted-foreground">
           {/* Formatting group */}
           <div className="flex items-center gap-1 border-r border-border pr-2">
@@ -264,19 +264,24 @@ export function RichTextEditor({
       </div>
 
       {/* Editor Content Area */}
-      <div
-        ref={editorRef}
-        contentEditable
-        onInput={updateContent}
-        suppressContentEditableWarning
-        className="min-h-[380px] p-6 sm:p-8 focus:outline-none font-sans text-lg leading-relaxed text-foreground prose prose-zinc dark:prose-invert max-w-none"
-        style={{ outline: 'none' }}
-      >
-        {!value && <div className="text-muted-foreground/50 italic">{placeholder}</div>}
+      <div className="relative min-h-[380px]">
+        {!value && (
+          <div className="absolute top-6 left-6 sm:top-8 sm:left-8 text-muted-foreground/50 italic pointer-events-none select-none">
+            {placeholder}
+          </div>
+        )}
+        <div
+          ref={editorRef}
+          contentEditable
+          onInput={updateContent}
+          suppressContentEditableWarning
+          className="min-h-[380px] p-6 sm:p-8 focus:outline-none font-sans text-lg leading-relaxed text-foreground prose prose-zinc dark:prose-invert max-w-none"
+          style={{ outline: 'none' }}
+        />
       </div>
 
       {/* Editorial Footer Info */}
-      <div className="bg-secondary/40 border-t border-border/60 px-6 py-2.5 flex items-center justify-between text-xs text-muted-foreground font-medium">
+      <div className="bg-secondary/40 border-t border-border/60 px-6 py-2.5 flex items-center justify-between text-xs text-muted-foreground font-medium rounded-b-2xl">
         <span>Editorial Rich Text Editor</span>
         <span>{editorRef.current?.textContent?.length || 0} characters</span>
       </div>
