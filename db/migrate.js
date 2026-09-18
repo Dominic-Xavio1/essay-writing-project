@@ -136,6 +136,35 @@ async function createMissingTables() {
     `);
     console.log("✅ Follows table created/verified");
 
+    // Add is_superuser to users and drop NOT NULL constraint on password_hash for OAuth
+    await pool.query(`
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS is_superuser BOOLEAN DEFAULT FALSE;
+      ALTER TABLE users ALTER COLUMN password_hash DROP NOT NULL;
+    `);
+    console.log("✅ Users schema updated (is_superuser column & nullable password_hash)");
+
+    // Update posts status check constraint to support pending, approved, rejected
+    await pool.query(`
+      ALTER TABLE posts DROP CONSTRAINT IF EXISTS posts_status_check;
+      ALTER TABLE posts ADD CONSTRAINT posts_status_check CHECK (status IN ('draft', 'pending', 'approved', 'rejected', 'published'));
+    `);
+    console.log("✅ Posts status check constraint updated");
+
+    // Create notifications table
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS notifications (
+        id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id     UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        title       VARCHAR(255) NOT NULL,
+        message     TEXT NOT NULL,
+        type        VARCHAR(50) DEFAULT 'info',
+        link        TEXT DEFAULT '',
+        is_read     BOOLEAN DEFAULT FALSE,
+        created_at  TIMESTAMPTZ DEFAULT NOW()
+      );
+    `);
+    console.log("✅ Notifications table created/verified");
+
     console.log("\n✅ All tables successfully created/verified!");
     process.exit(0);
   } catch (error) {

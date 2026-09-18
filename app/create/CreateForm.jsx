@@ -127,10 +127,16 @@ export function CreateForm() {
       };
       if (editId) {
         await api.updatePost(editId, body);
-        toast.success(status === 'draft' ? 'Draft updated!' : 'Essay updated and live!');
+        toast.success(status === 'draft' ? 'Draft updated!' : 'Essay updated successfully!');
       } else {
-        await api.createPost(body);
-        toast.success(status === 'draft' ? 'Draft saved!' : 'Essay published successfully!');
+        const res = await api.createPost(body);
+        if (status === 'draft') {
+          toast.success('Draft saved!');
+        } else if (res.post?.status === 'pending') {
+          toast.success('Essay submitted for superuser review!');
+        } else {
+          toast.success('Essay published successfully!');
+        }
         if (status === 'published') {
           setTitle('');
           setExcerpt('');

@@ -7,6 +7,7 @@ import { Header } from '@/components/shared/Header';
 import { Footer } from '@/components/shared/Footer';
 import { api } from '@/lib/api-client';
 import { Button } from '@/components/ui/customButton';
+import { UserAvatar } from '@/components/ui/UserAvatar';
 import {
   Edit2,
   Trash2,
@@ -24,6 +25,7 @@ import {
   FileText,
   Clock,
   Plus,
+  ShieldCheck,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'sonner';
@@ -81,7 +83,8 @@ export default function DashboardPage() {
     );
   }
 
-  const publishedPosts = userPosts.filter((p) => p.status !== 'draft');
+  const publishedPosts = userPosts.filter((p) => p.status === 'approved' || p.status === 'published');
+  const pendingPosts = userPosts.filter((p) => p.status === 'pending');
   const draftPosts = userPosts.filter((p) => p.status === 'draft');
 
   return (
@@ -104,6 +107,11 @@ export default function DashboardPage() {
             </div>
 
             <div className="flex items-center gap-3">
+              {user.isSuperuser && (
+                <Button variant="outline" href="/dashboard/admin">
+                  <ShieldCheck size={16} className="text-amber-500" /> Moderation Studio
+                </Button>
+              )}
               <Button variant="accent" href="/create">
                 <PenSquare size={16} /> Write New Essay
               </Button>
@@ -113,19 +121,21 @@ export default function DashboardPage() {
           {/* Author Profile Banner */}
           <section className="mb-10 bg-card border border-border rounded-2xl p-6 sm:p-8 shadow-xs">
             <div className="flex flex-col md:flex-row gap-6 items-start md:items-center">
-              <img
-                src={user.avatar || '/placeholder-user.jpg'}
-                alt={user.name}
-                className="w-20 h-20 sm:w-24 sm:h-24 rounded-full object-cover ring-4 ring-primary/10"
-              />
+              <UserAvatar src={user.avatar} name={user.name} size="xl" />
               <div className="flex-1">
                 <div className="flex items-center gap-3 mb-1">
                   <h2 className="font-serif text-2xl sm:text-3xl font-bold text-foreground">
                     {user.name}
                   </h2>
-                  <span className="text-xs bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 font-semibold px-2.5 py-0.5 rounded-full border border-emerald-500/20">
-                    Pro Author
-                  </span>
+                  {user.isSuperuser ? (
+                    <span className="text-xs bg-amber-500/10 text-amber-700 dark:text-amber-400 font-bold px-2.5 py-0.5 rounded-full border border-amber-500/20 flex items-center gap-1">
+                      <ShieldCheck size={13} /> Superuser Admin
+                    </span>
+                  ) : (
+                    <span className="text-xs bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 font-semibold px-2.5 py-0.5 rounded-full border border-emerald-500/20">
+                      Author
+                    </span>
+                  )}
                 </div>
                 <p className="text-muted-foreground text-sm leading-relaxed mb-4 max-w-2xl">
                   {user.bio || 'Sharing thoughtful stories and technical insights with the global community.'}
@@ -274,6 +284,7 @@ export default function DashboardPage() {
             <div className="flex gap-2 sm:gap-6 overflow-x-auto pb-px">
               {[
                 { id: 'published', label: `Published (${publishedPosts.length})`, icon: FileText },
+                { id: 'pending', label: `Pending Approval (${pendingPosts.length})`, icon: Clock },
                 { id: 'drafts', label: `Drafts (${draftPosts.length})`, icon: Edit2 },
                 { id: 'bookmarked', label: 'Bookmarks', icon: Bookmark },
                 { id: 'analytics', label: 'Analytics Insights', icon: BarChart3 },
@@ -441,6 +452,56 @@ export default function DashboardPage() {
                           >
                             <Edit2 size={18} />
                           </Link>
+                          <button
+                            onClick={() => handleDelete(post.id)}
+                            className="p-2 bg-secondary hover:bg-rose-500/10 rounded-xl text-rose-500"
+                          >
+                            <Trash2 size={18} />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </motion.div>
+            )}
+
+            {activeTab === 'pending' && (
+              <motion.div
+                key="pending"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0 }}
+              >
+                {pendingPosts.length === 0 ? (
+                  <div className="text-center py-16 px-6 bg-card border border-border rounded-2xl max-w-lg mx-auto">
+                    <div className="w-14 h-14 rounded-full bg-amber-500/10 text-amber-500 flex items-center justify-center mx-auto mb-4 text-2xl">
+                      ⏳
+                    </div>
+                    <h3 className="font-serif text-2xl font-bold text-foreground mb-2">No pending essays</h3>
+                    <p className="text-muted-foreground text-sm leading-relaxed mb-6">
+                      You don't have any essays currently awaiting superuser moderation.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {pendingPosts.map((post) => (
+                      <div
+                        key={post.id}
+                        className="bg-card border border-border p-5 rounded-2xl flex items-center justify-between hover:border-amber-400/40 transition-all shadow-xs"
+                      >
+                        <div>
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className="text-[10px] uppercase font-bold bg-amber-500/10 text-amber-600 px-2.5 py-0.5 rounded-full border border-amber-500/20">
+                              Pending Review
+                            </span>
+                            <h4 className="font-serif font-bold text-base text-foreground">
+                              {post.title}
+                            </h4>
+                          </div>
+                          <p className="text-xs text-muted-foreground line-clamp-1">{post.excerpt}</p>
+                        </div>
+                        <div className="flex gap-2">
                           <button
                             onClick={() => handleDelete(post.id)}
                             className="p-2 bg-secondary hover:bg-rose-500/10 rounded-xl text-rose-500"

@@ -7,7 +7,8 @@ import { Header } from '@/components/shared/Header';
 import { Footer } from '@/components/shared/Footer';
 import { api } from '@/lib/api-client';
 import { Button } from '@/components/ui/customButton';
-import { AlertCircle, User, Shield, Lock, ArrowLeft } from 'lucide-react';
+import { UserAvatar } from '@/components/ui/UserAvatar';
+import { AlertCircle, User, Shield, Lock, ArrowLeft, Upload } from 'lucide-react';
 import { toast } from 'sonner';
 
 export default function SettingsPage() {
@@ -22,6 +23,7 @@ export default function SettingsPage() {
   const [emailNotifications, setEmailNotifications] = useState(true);
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
+  const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
 
   useEffect(() => {
     api.getMe()
@@ -37,6 +39,42 @@ export default function SettingsPage() {
       })
       .catch(() => router.push('/auth/login'));
   }, [router]);
+
+  const handleAvatarFileUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
+    if (!allowedTypes.includes(file.type)) {
+      toast.error('Invalid file format. Please upload JPEG, PNG, WebP, or GIF.');
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error('File too large. Maximum size is 5MB.');
+      return;
+    }
+
+    const formData = new FormData();
+    formData.append('avatar', file);
+
+    setIsUploadingAvatar(true);
+    try {
+      const res = await fetch('/api/users/me/avatar', {
+        method: 'POST',
+        body: formData,
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Upload failed');
+
+      setAvatar(data.avatarUrl || data.user?.avatar || '');
+      toast.success('Avatar updated successfully!');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Avatar upload failed');
+    } finally {
+      setIsUploadingAvatar(false);
+    }
+  };
 
   const handleSaveProfile = async () => {
     try {
@@ -135,8 +173,47 @@ export default function SettingsPage() {
               {activeTab === 'profile' && (
                 <div className="bg-card border border-border rounded-2xl p-6 sm:p-8 space-y-6 shadow-xs">
                   <h2 className="font-serif text-xl font-bold text-foreground">Public Profile</h2>
+                  
+                  {/* Avatar Upload Section */}
                   <div>
-                    <label className="block text-xs uppercase tracking-wider font-bold text-muted-foreground mb-2">Avatar URL</label>
+                    <label className="block text-xs uppercase tracking-wider font-bold text-muted-foreground mb-3">
+                      Profile Picture
+                    </label>
+                    <div className="flex items-center gap-6">
+                      <UserAvatar src={avatar} name={name} size="xl" />
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-3">
+                          <label className={`px-4 py-2 bg-primary text-primary-foreground text-xs font-semibold rounded-xl cursor-pointer hover:bg-primary/90 transition-all flex items-center gap-2 shadow-xs ${isUploadingAvatar ? 'opacity-50 cursor-not-allowed' : ''}`}>
+                            <Upload size={14} />
+                            {isUploadingAvatar ? 'Uploading...' : 'Upload New Avatar'}
+                            <input
+                              type="file"
+                              accept="image/jpeg,image/png,image/webp,image/gif"
+                              onChange={handleAvatarFileUpload}
+                              disabled={isUploadingAvatar}
+                              className="hidden"
+                            />
+                          </label>
+
+                          {avatar && (
+                            <button
+                              type="button"
+                              onClick={() => setAvatar('')}
+                              className="px-3 py-2 bg-secondary text-muted-foreground hover:text-destructive text-xs font-semibold rounded-xl transition-colors"
+                            >
+                              Remove
+                            </button>
+                          )}
+                        </div>
+                        <p className="text-[11px] text-muted-foreground">
+                          Supports PNG, JPG, WebP, GIF up to 5MB
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs uppercase tracking-wider font-bold text-muted-foreground mb-2">Avatar URL (Optional)</label>
                     <input
                       type="text"
                       value={avatar}

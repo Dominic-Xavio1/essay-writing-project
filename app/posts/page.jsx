@@ -9,6 +9,7 @@ import { categories, allTags } from '@/lib/posts';
 import { api } from '@/lib/api-client';
 import { ClapButton } from '@/components/ui/clap-button';
 import { AuthorHoverCard } from '@/components/ui/author-hover-card';
+import { UserAvatar } from '@/components/ui/UserAvatar';
 import {
   MessageSquare,
   Share2,
@@ -352,10 +353,10 @@ export default function PostsPage() {
                                   <div className="flex items-center gap-3 mb-3">
                                     <AuthorHoverCard author={post.author}>
                                       <div className="flex items-center gap-2">
-                                        <img
-                                          src={post.author.avatar || '/placeholder-user.jpg'}
-                                          alt={post.author.name}
-                                          className="w-8 h-8 rounded-full object-cover ring-1 ring-border"
+                                        <UserAvatar
+                                          src={post.author.avatar}
+                                          name={post.author.name}
+                                          size="sm"
                                         />
                                         <span className="font-semibold text-xs text-foreground hover:text-primary transition-colors">
                                           {post.author.name}
