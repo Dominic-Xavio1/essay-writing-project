@@ -25,9 +25,22 @@ export function Header() {
         setUser(data.user);
         if (data.user) {
           fetchNotifications();
+          const { wsClient } = require('@/lib/websocket');
+          wsClient.connect(data.user.id);
         }
       })
       .catch(() => setUser(null));
+
+    let unsubscribe = () => {};
+    try {
+      const { wsClient } = require('@/lib/websocket');
+      unsubscribe = wsClient.subscribe('NOTIFICATION', (notif) => {
+        setNotifications((prev) => [notif, ...prev]);
+        toast.info(`🔔 ${notif.title}`, { description: notif.message });
+      });
+    } catch (err) {}
+
+    return () => unsubscribe();
   }, []);
 
   const fetchNotifications = () => {

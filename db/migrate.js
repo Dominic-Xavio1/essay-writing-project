@@ -165,6 +165,27 @@ async function createMissingTables() {
     `);
     console.log("✅ Notifications table created/verified");
 
+    // Create post_reads table for true analytics calculation
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS post_reads (
+        id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        post_id       UUID NOT NULL REFERENCES posts(id) ON DELETE CASCADE,
+        user_id       UUID REFERENCES users(id) ON DELETE CASCADE,
+        session_id    VARCHAR(255),
+        read_duration INTEGER DEFAULT 0,
+        scroll_depth  INTEGER DEFAULT 0,
+        created_at    TIMESTAMPTZ DEFAULT NOW()
+      );
+      CREATE INDEX IF NOT EXISTS idx_post_reads_post ON post_reads(post_id);
+    `);
+    console.log("✅ Post reads table created/verified");
+
+    // Add parent_id to comments for replies / sub-comments
+    await pool.query(`
+      ALTER TABLE comments ADD COLUMN IF NOT EXISTS parent_id UUID REFERENCES comments(id) ON DELETE CASCADE;
+    `);
+    console.log("✅ Comments parent_id column verified");
+
     console.log("\n✅ All tables successfully created/verified!");
     process.exit(0);
   } catch (error) {

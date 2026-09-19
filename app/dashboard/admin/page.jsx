@@ -11,6 +11,9 @@ import { ShieldCheck, CheckCircle2, XCircle, Clock, Eye, ArrowLeft, AlertCircle 
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'sonner';
 
+import { wsClient } from '@/lib/websocket';
+import { MessageSquare, Send } from 'lucide-react';
+
 export default function SuperuserDashboardPage() {
   const router = useRouter();
   const [user, setUser] = useState(null);
@@ -18,6 +21,8 @@ export default function SuperuserDashboardPage() {
   const [statusFilter, setStatusFilter] = useState('pending');
   const [loading, setLoading] = useState(true);
   const [actioningId, setActioningId] = useState(null);
+  const [feedbackInput, setFeedbackInput] = useState({});
+  const [activeFeedbackId, setActiveFeedbackId] = useState(null);
 
   useEffect(() => {
     api.getMe()
@@ -29,9 +34,33 @@ export default function SuperuserDashboardPage() {
         }
         setUser(res.user);
         loadPosts('pending');
+
+        // Connect WebSocket for real-time streaming of new pending submissions
+        wsClient.connect(res.user.id);
       })
       .catch(() => router.push('/auth/login'));
-  }, [router]);
+
+    // Real-time listener for new pending posts submitted by authors
+    const unsubscribeNew = wsClient.subscribe('NEW_PENDING_POST', (data) => {
+      toast.info(`🔔 New essay submitted: "${data.postTitle}"`);
+      if (data.post) {
+        setPosts((prev) => [data.post, ...prev.filter((p) => p.id !== data.post.id)]);
+      } else {
+        loadPosts(statusFilter);
+      }
+    });
+
+    const unsubscribeMod = wsClient.subscribe('POST_MODERATED', (data) => {
+      if (data.postId) {
+        setPosts((prev) => prev.filter((p) => p.id !== data.postId));
+      }
+    });
+
+    return () => {
+      unsubscribeNew();
+      unsubscribeMod();
+    };
+  }, [router, statusFilter]);
 
   const loadPosts = (status) => {
     setLoading(true);
@@ -52,19 +81,26 @@ export default function SuperuserDashboardPage() {
 
   const handleModerate = async (postId, status) => {
     setActioningId(postId);
+    const feedback = feedbackInput[postId] || '';
     try {
       const res = await fetch(`/api/admin/posts/${postId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status }),
+        body: JSON.stringify({ status, feedback }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Action failed');
 
       setPosts((prev) => prev.filter((p) => p.id !== postId));
       toast.success(
-        status === 'approved' ? 'Post approved and published to Explore!' : 'Post rejected'
+        status === 'approved'
+          ? 'Post approved & published to Explore!'
+          : feedback
+          ? 'Feedback sent & post rejected!'
+          : 'Post rejected'
       );
+      setFeedbackInput((prev) => ({ ...prev, [postId]: '' }));
+      setActiveFeedbackId(null);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Moderation failed');
     } finally {
@@ -206,15 +242,53 @@ export default function SuperuserDashboardPage() {
                       </p>
                     </div>
 
+                    {/* Live Feedback Box Toggle */}
+                    {activeFeedbackId === post.id && (
+                      <div className="mt-4 pt-4 border-t border-border/60">
+                        <label className="block text-xs font-bold text-foreground mb-1">
+                          Live Feedback to Author ({post.author?.name})
+                        </label>
+                        <div className="flex gap-2">
+                          <input
+                            type="text"
+                            placeholder="Type feedback, suggestions or revision notes..."
+                            value={feedbackInput[post.id] || ''}
+                            onChange={(e) =>
+                              setFeedbackInput({ ...feedbackInput, [post.id]: e.target.value })
+                            }
+                            className="flex-1 px-3 py-2 text-xs bg-secondary border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-primary text-foreground"
+                          />
+                          <Button
+                            variant="destructive"
+                            size="sm"
+                            disabled={actioningId === post.id}
+                            onClick={() => handleModerate(post.id, 'rejected')}
+                          >
+                            <Send size={13} /> Reject w/ Feedback
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+
                     {/* Action buttons */}
                     <div className="flex flex-wrap items-center justify-between gap-3 pt-4 border-t border-border/60">
-                      <Link
-                        href={`/posts/${post.id}`}
-                        target="_blank"
-                        className="inline-flex items-center gap-1.5 text-xs font-semibold text-primary hover:underline"
-                      >
-                        <Eye size={14} /> Full Preview
-                      </Link>
+                      <div className="flex items-center gap-3">
+                        <Link
+                          href={`/posts/${post.id}`}
+                          target="_blank"
+                          className="inline-flex items-center gap-1.5 text-xs font-semibold text-primary hover:underline"
+                        >
+                          <Eye size={14} /> Full Preview
+                        </Link>
+                        <button
+                          onClick={() =>
+                            setActiveFeedbackId(activeFeedbackId === post.id ? null : post.id)
+                          }
+                          className="inline-flex items-center gap-1 text-xs font-semibold text-muted-foreground hover:text-foreground"
+                        >
+                          <MessageSquare size={13} /> Live Feedback
+                        </button>
+                      </div>
 
                       <div className="flex items-center gap-2">
                         {post.status !== 'rejected' && (

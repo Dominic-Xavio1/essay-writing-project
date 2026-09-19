@@ -27,6 +27,8 @@ import {
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'sonner';
 
+import { HeartPopEffect } from '@/components/ui/HeartPopEffect';
+
 const REACTIONS = ['👍', '❤️', '😂', '😢', '🔥', '💯'];
 
 export default function PostDetailPage() {
@@ -41,6 +43,8 @@ export default function PostDetailPage() {
   const [showReactions, setShowReactions] = useState(false);
   const [comments, setComments] = useState([]);
   const [newComment, setNewComment] = useState('');
+  const [replyingToId, setReplyingToId] = useState(null);
+  const [replyText, setReplyText] = useState('');
   const [loading, setLoading] = useState(true);
   const [following, setFollowing] = useState(false);
 
@@ -50,6 +54,24 @@ export default function PostDetailPage() {
   const [scrollProgress, setScrollProgress] = useState(0);
   const [textSize, setTextSize] = useState('large');
   const [focusMode, setFocusMode] = useState(false);
+
+  // Read analytics periodic beacon tracking
+  useEffect(() => {
+    if (!id) return;
+    let secondsSpent = 0;
+    const interval = setInterval(() => {
+      secondsSpent += 5;
+      const totalHeight = document.documentElement.scrollHeight - window.innerHeight;
+      const depth = totalHeight > 0 ? Math.round((window.scrollY / totalHeight) * 100) : 0;
+      fetch(`/api/posts/${id}/read`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ readDuration: secondsSpent, scrollDepth: depth }),
+      }).catch(() => {});
+    }, 5000);
+
+    return () => clearInterval(interval);
+  }, [id]);
 
   // Scroll Progress listener
   useEffect(() => {
@@ -187,14 +209,27 @@ export default function PostDetailPage() {
     }
   };
 
-  const handleAddComment = async () => {
-    if (!newComment.trim()) return;
+  const handleAddComment = async (parentId = null) => {
+    const textToSend = parentId ? replyText : newComment;
+    if (!textToSend.trim()) return;
     try {
-      const data = await api.addComment(id, newComment);
-      setComments([data.comment, ...comments]);
-      setNewComment('');
-      setPost({ ...post, comments: post.comments + 1 });
-      toast.success('Comment posted successfully');
+      const res = await fetch(`/api/posts/${id}/comments`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: textToSend, parentId }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+
+      setComments((prev) => [...prev, data.comment]);
+      if (parentId) {
+        setReplyText('');
+        setReplyingToId(null);
+      } else {
+        setNewComment('');
+      }
+      setPost((prev) => ({ ...prev, comments: (prev.comments || 0) + 1 }));
+      toast.success(parentId ? 'Reply posted!' : 'Comment posted!');
     } catch {
       toast.error('Sign in to post comments');
     }
@@ -438,36 +473,118 @@ export default function PostDetailPage() {
               </div>
             </div>
 
-            <div className="space-y-4">
-              {comments.map((comment) => (
-                <div key={comment.id} className="flex gap-4 bg-card border border-border p-5 rounded-xl">
-                  <img
-                    src={comment.avatar || '/placeholder-user.jpg'}
-                    alt={comment.author}
-                    className="w-10 h-10 rounded-full object-cover flex-shrink-0"
-                  />
-                  <div className="flex-1">
-                    <div className="flex items-center justify-between mb-1">
-                      <p className="font-bold text-sm text-foreground">{comment.author}</p>
-                      <span className="text-[11px] text-muted-foreground">
-                        {new Date(comment.created_at).toLocaleDateString()}
-                      </span>
+            <div className="space-y-6">
+              {comments
+                .filter((c) => !c.parentId)
+                .map((comment) => {
+                  const replies = comments.filter((r) => r.parentId === comment.id);
+                  return (
+                    <div key={comment.id} className="bg-card border border-border p-5 rounded-2xl shadow-xs">
+                      <div className="flex gap-4">
+                        <img
+                          src={comment.avatar || '/placeholder-user.jpg'}
+                          alt={comment.author}
+                          className="w-10 h-10 rounded-full object-cover flex-shrink-0 ring-2 ring-primary/10"
+                        />
+                        <div className="flex-1">
+                          <div className="flex items-center justify-between mb-1">
+                            <p className="font-bold text-sm text-foreground">{comment.author}</p>
+                            <span className="text-[11px] text-muted-foreground">
+                              {new Date(comment.created_at).toLocaleDateString()}
+                            </span>
+                          </div>
+                          <p className="text-muted-foreground text-sm leading-relaxed mb-3">{comment.text}</p>
+                          <div className="flex items-center gap-4">
+                            <HeartPopEffect
+                              isLiked={comment.likedByViewer}
+                              onToggle={() => handleLikeComment(comment.id)}
+                            >
+                              <div
+                                className={`text-xs flex items-center gap-1.5 font-medium px-3 py-1 rounded-full border transition-all ${
+                                  comment.likedByViewer
+                                    ? 'text-rose-600 bg-rose-50 border-rose-200 dark:bg-rose-950/40 dark:border-rose-900'
+                                    : 'text-muted-foreground border-border hover:text-foreground hover:bg-secondary'
+                                }`}
+                              >
+                                <span>{comment.likedByViewer ? '❤️' : '🤍'}</span>
+                                <span>{comment.likes}</span>
+                              </div>
+                            </HeartPopEffect>
+
+                            <button
+                              onClick={() => setReplyingToId(replyingToId === comment.id ? null : comment.id)}
+                              className="text-xs font-semibold text-primary hover:underline flex items-center gap-1"
+                            >
+                              <MessageCircle size={13} /> Reply
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Reply Input Drawer */}
+                      {replyingToId === comment.id && (
+                        <div className="mt-4 ml-12 pt-3 border-t border-border/60">
+                          <div className="flex gap-2">
+                            <input
+                              type="text"
+                              value={replyText}
+                              onChange={(e) => setReplyText(e.target.value)}
+                              placeholder={`Reply to ${comment.author}...`}
+                              className="flex-1 px-3.5 py-2 text-xs bg-secondary border border-border rounded-xl text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                            />
+                            <Button
+                              variant="accent"
+                              size="sm"
+                              disabled={!replyText.trim()}
+                              onClick={() => handleAddComment(comment.id)}
+                            >
+                              Send Reply
+                            </Button>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Sub-comments / Nested Replies */}
+                      {replies.length > 0 && (
+                        <div className="mt-4 ml-8 sm:ml-12 space-y-3 pt-3 border-t border-border/50">
+                          {replies.map((reply) => (
+                            <div key={reply.id} className="flex gap-3 bg-secondary/50 border border-border/60 p-3.5 rounded-xl">
+                              <img
+                                src={reply.avatar || '/placeholder-user.jpg'}
+                                alt={reply.author}
+                                className="w-8 h-8 rounded-full object-cover flex-shrink-0 ring-1 ring-primary/20"
+                              />
+                              <div className="flex-1">
+                                <div className="flex items-center justify-between mb-0.5">
+                                  <p className="font-bold text-xs text-foreground">{reply.author}</p>
+                                  <span className="text-[10px] text-muted-foreground">
+                                    {new Date(reply.created_at).toLocaleDateString()}
+                                  </span>
+                                </div>
+                                <p className="text-muted-foreground text-xs leading-relaxed mb-2">{reply.text}</p>
+                                <HeartPopEffect
+                                  isLiked={reply.likedByViewer}
+                                  onToggle={() => handleLikeComment(reply.id)}
+                                >
+                                  <div
+                                    className={`text-[11px] inline-flex items-center gap-1 font-medium px-2.5 py-0.5 rounded-full border transition-all ${
+                                      reply.likedByViewer
+                                        ? 'text-rose-600 bg-rose-50 border-rose-200 dark:bg-rose-950/40'
+                                        : 'text-muted-foreground border-border hover:text-foreground'
+                                    }`}
+                                  >
+                                    <span>{reply.likedByViewer ? '❤️' : '🤍'}</span>
+                                    <span>{reply.likes}</span>
+                                  </div>
+                                </HeartPopEffect>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
-                    <p className="text-muted-foreground text-sm leading-relaxed mb-3">{comment.text}</p>
-                    <button
-                      onClick={() => handleLikeComment(comment.id)}
-                      className={`text-xs flex items-center gap-1.5 font-medium px-2.5 py-1 rounded-full transition-colors ${
-                        comment.likedByViewer
-                          ? 'text-rose-600 bg-rose-50 dark:bg-rose-950/40'
-                          : 'text-muted-foreground hover:text-foreground hover:bg-secondary'
-                      }`}
-                    >
-                      <ThumbsUp size={14} className={comment.likedByViewer ? 'fill-rose-500' : ''} />
-                      <span>{comment.likes}</span>
-                    </button>
-                  </div>
-                </div>
-              ))}
+                  );
+                })}
             </div>
           </section>
 

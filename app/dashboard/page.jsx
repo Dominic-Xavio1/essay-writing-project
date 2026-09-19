@@ -45,9 +45,26 @@ export default function DashboardPage() {
         setUser(me.user);
         setUserPosts(postsRes.posts || []);
         setBookmarkedPosts(bookmarksRes.posts || []);
+        if (me.user?.id) {
+          const { wsClient } = require('@/lib/websocket');
+          wsClient.connect(me.user.id);
+        }
       })
       .catch(() => router.push('/auth/login'))
       .finally(() => setLoading(false));
+
+    let unsubscribe = () => {};
+    try {
+      const { wsClient } = require('@/lib/websocket');
+      unsubscribe = wsClient.subscribe('SUPERUSER_FEEDBACK', (data) => {
+        toast.info(`💬 Feedback on "${data.postTitle}": ${data.feedback}`, {
+          duration: 8000,
+        });
+        api.getMyPosts().then((postsRes) => setUserPosts(postsRes.posts || []));
+      });
+    } catch (err) {}
+
+    return () => unsubscribe();
   }, [router]);
 
   const handleDelete = async (postId) => {
@@ -179,10 +196,12 @@ export default function DashboardPage() {
                   Total Reads
                 </span>
                 <span className="text-xs text-emerald-600 bg-emerald-50 dark:bg-emerald-950/50 px-2 py-0.5 rounded-full font-semibold flex items-center gap-1">
-                  <TrendingUp size={12} /> +18.4%
+                  <TrendingUp size={12} /> Real-Time
                 </span>
               </div>
-              <p className="font-serif text-3xl font-extrabold text-foreground mb-3">14,820</p>
+              <p className="font-serif text-3xl font-extrabold text-foreground mb-3">
+                {(user.totalReads || 0).toLocaleString()}
+              </p>
               <div className="h-10 w-full">
                 <svg className="w-full h-full overflow-visible" viewBox="0 0 100 30">
                   <path
@@ -213,7 +232,7 @@ export default function DashboardPage() {
                   Total Claps
                 </span>
                 <span className="text-xs text-rose-600 bg-rose-50 dark:bg-rose-950/50 px-2 py-0.5 rounded-full font-semibold flex items-center gap-1">
-                  <Heart size={12} /> +24.1%
+                  <Heart size={12} /> Community
                 </span>
               </div>
               <p className="font-serif text-3xl font-extrabold text-rose-500 mb-3">
@@ -238,10 +257,12 @@ export default function DashboardPage() {
                   Reader Retention
                 </span>
                 <span className="text-xs text-amber-600 bg-amber-50 dark:bg-amber-950/50 px-2 py-0.5 rounded-full font-semibold">
-                  78.5%
+                  {user.retentionRate || 0}%
                 </span>
               </div>
-              <p className="font-serif text-3xl font-extrabold text-foreground mb-3">4m 12s</p>
+              <p className="font-serif text-3xl font-extrabold text-foreground mb-3">
+                {user.formattedDuration || '0m 0s'}
+              </p>
               <div className="h-10 w-full">
                 <svg className="w-full h-full overflow-visible" viewBox="0 0 100 30">
                   <path

@@ -26,6 +26,8 @@ import {
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'sonner';
 
+import { HeartPopEffect } from '@/components/ui/HeartPopEffect';
+
 export default function PostsPage() {
   const [posts, setPosts] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -99,7 +101,6 @@ export default function PostsPage() {
         prevPosts.map((p) => (p.id === postId ? { ...p, liked: result.liked } : p))
       );
     } catch {
-      // Revert optimistic update
       setPosts((prevPosts) =>
         prevPosts.map((p) => {
           if (p.id === postId) {
@@ -164,23 +165,27 @@ export default function PostsPage() {
       <Header />
       <main className="min-h-screen bg-background pb-20">
         {/* Header Hero Banner */}
-        <section className="bg-secondary/40 border-b border-border/80 py-12 sm:py-16">
+        <section className="bg-secondary/40 border-b border-border/80 py-10">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="max-w-3xl">
-              <div className="inline-flex items-center gap-2 px-3 py-1 bg-primary/10 border border-primary/20 text-primary rounded-full text-xs font-semibold uppercase tracking-wider mb-4">
+              <div className="inline-flex items-center gap-2 px-3 py-1 bg-primary/10 border border-primary/20 text-primary rounded-full text-xs font-semibold uppercase tracking-wider mb-3">
                 <Sparkles size={13} /> Curated Reading Feed
               </div>
-              <h1 className="font-serif text-4xl sm:text-5xl font-extrabold text-foreground tracking-tight mb-4">
+              <h1 className="font-serif text-3xl sm:text-4xl font-extrabold text-foreground tracking-tight mb-2">
                 Discover Thoughtful Writing
               </h1>
-              <p className="text-muted-foreground text-base sm:text-lg leading-relaxed">
-                Explore deep dives, essays, and stories crafted by writers around the world on technology, philosophy, design, and society.
+              <p className="text-muted-foreground text-sm sm:text-base leading-relaxed">
+                Explore deep dives, essays, and stories crafted by writers around the world.
               </p>
             </div>
           </div>
         </section>
 
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-8">
+        {/* <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6">
+        
+          <div className="sticky top-16 z-30 bg-background/95 backdrop-blur-md py-4 border-b border-border/60 mb-6">
+            <div className="relative flex items-center max-w-4xl"> */}
+               <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-8">
           {/* Interactive Search Bar & Hotkey Bar */}
           <div className="mb-8 relative max-w-3xl">
             <div className="relative flex items-center">
@@ -191,7 +196,7 @@ export default function PostsPage() {
                 placeholder="Search by title, topic, or keyword..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-11 pr-24 py-3.5 bg-card border border-border rounded-xl text-foreground text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all shadow-xs"
+                className="w-full pl-11 pr-24 py-3 bg-card border border-border rounded-xl text-foreground text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all shadow-xs"
               />
               <div className="absolute right-3 flex items-center gap-2">
                 {searchQuery && (
@@ -285,7 +290,7 @@ export default function PostsPage() {
               </div>
             </aside>
 
-            {/* Posts Content Feed */}
+            {/* Posts Content Feed inside Fixed Height Smooth Motion Container */}
             <div className="lg:col-span-3">
               {loading ? (
                 <div className="space-y-5">
@@ -322,30 +327,34 @@ export default function PostsPage() {
                   </button>
                 </div>
               ) : (
-                <div className="space-y-6">
-                  <AnimatePresence>
+                // <div className="max-h-[calc(100vh)] overflow-y-auto scroll-smooth custom-scrollbar pr-2 space-y-6">
+                 <div className="space-y-6">
+                 <AnimatePresence>
                     {posts.map((post) => {
                       const isBookmarked = bookmarkedPosts.includes(post.id);
-                      console.log("The post that I am expecting to see ",post);
                       return (
                         <motion.article
                           key={post.id}
                           initial={{ opacity: 0, y: 12 }}
                           animate={{ opacity: 1, y: 0 }}
                           exit={{ opacity: 0, scale: 0.98 }}
-                          whileHover={{ y: -2, scale: 1.005 }}
+                          whileHover={{ y: -2, scale: 1.003 }}
                           transition={{ duration: 0.25 }}
                           className="group bg-card border border-border/80 hover:border-primary/50 rounded-2xl overflow-hidden shadow-xs hover:shadow-xl transition-all duration-300"
                         >
                           <div className="flex flex-col md:flex-row gap-6 p-6 sm:p-7">
                             {post.featured_image && (
-                              <div className="md:w-56 h-40 md:h-auto flex-shrink-0 relative overflow-hidden rounded-xl bg-secondary">
+                              <HeartPopEffect
+                                isLiked={post.liked}
+                                onToggle={(e) => handleLike(post.id, e)}
+                                className="md:w-56 h-40 md:h-auto flex-shrink-0 relative overflow-hidden rounded-xl bg-secondary"
+                              >
                                 <img
                                   src={post.featured_image}
                                   alt={post.title}
                                   className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                                 />
-                              </div>
+                              </HeartPopEffect>
                             )}
                             <div className="flex-1 flex flex-col justify-between">
                               <div>
@@ -404,10 +413,11 @@ export default function PostsPage() {
 
                                 <div className="flex items-center justify-between pt-3 border-t border-border/60">
                                   <div className="flex items-center gap-3">
-                                    <div className="flex items-center gap-1">
-                                      <EmojiBurstButton
-                                        label="Like"
-                                        onReact={() => handleLike(post.id)}
+                                    <HeartPopEffect
+                                      isLiked={post.liked}
+                                      onToggle={(e) => handleLike(post.id, e)}
+                                    >
+                                      <div
                                         className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border transition-all ${
                                           post.liked
                                             ? 'bg-rose-500/10 text-rose-600 border-rose-300 dark:border-rose-900'
@@ -416,8 +426,8 @@ export default function PostsPage() {
                                       >
                                         <span>{post.liked ? '❤️' : '🤍'}</span>
                                         <span>{post.likes}</span>
-                                      </EmojiBurstButton>
-                                    </div>
+                                      </div>
+                                    </HeartPopEffect>
 
                                     <Link
                                       href={`/posts/${post.id}#comments`}

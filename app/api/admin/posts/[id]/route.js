@@ -9,12 +9,13 @@ export async function PATCH(req, { params }) {
   const { id } = await params;
   const body = await parseBody(req);
   const status = body?.status;
+  const feedback = body?.feedback || '';
 
   if (!['approved', 'rejected', 'pending'].includes(status)) {
     return err('Invalid status. Expected approved, rejected, or pending.');
   }
 
-  const post = await moderatePost(id, status);
+  const post = await moderatePost(id, status, feedback);
   if (!post) return err('Post not found', 404);
 
   return ok({ post, success: true });

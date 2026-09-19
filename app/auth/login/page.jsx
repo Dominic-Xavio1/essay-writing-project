@@ -19,8 +19,8 @@ function LoginContent() {
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState(urlError || '');
-
+  const [isRedirecting, setIsRedirecting] = useState(false);
+  const [error, setError]=useState(urlError || '');
   useEffect(() => {
     if (urlError) setError(urlError);
   }, [urlError]);
@@ -32,13 +32,30 @@ function LoginContent() {
 
     try {
       await api.login({ email, password, rememberMe });
-      router.push('/dashboard');
+      setIsRedirecting(true);
+      // Hard navigation ensures session cookie is refreshed immediately on Vercel deployments
+      window.location.href = '/dashboard';
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Login failed');
-    } finally {
       setIsLoading(false);
     }
   };
+
+  if (isRedirecting) {
+    return (
+      <div className="w-full max-w-md bg-card border border-border rounded-2xl p-8 text-center space-y-5 shadow-lg">
+        <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-2" />
+        <h2 className="font-serif text-2xl font-bold text-foreground">Welcome Back!</h2>
+        <p className="text-muted-foreground text-xs font-medium">
+          Authenticated successfully. Loading your Author Studio dashboard...
+        </p>
+        <div className="space-y-3 pt-2">
+          <div className="h-6 bg-secondary rounded-lg skeleton-shimmer w-3/4 mx-auto" />
+          <div className="h-20 bg-secondary rounded-xl skeleton-shimmer w-full" />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="w-full max-w-md">

@@ -76,6 +76,7 @@ CREATE TABLE comments (
     id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     post_id    UUID NOT NULL REFERENCES posts(id) ON DELETE CASCADE,
     user_id    UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    parent_id  UUID REFERENCES comments(id) ON DELETE CASCADE,
     text       TEXT NOT NULL,
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -89,6 +90,19 @@ CREATE TABLE comment_likes (
     created_at TIMESTAMPTZ DEFAULT NOW(),
     PRIMARY KEY (user_id, comment_id)
 );
+
+-- ─── POST READS (ANALYTICS) ──────────────────────────────────────────────────
+CREATE TABLE post_reads (
+    id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    post_id       UUID NOT NULL REFERENCES posts(id) ON DELETE CASCADE,
+    user_id       UUID REFERENCES users(id) ON DELETE CASCADE,
+    session_id    VARCHAR(255),
+    read_duration INTEGER DEFAULT 0,
+    scroll_depth  INTEGER DEFAULT 0,
+    created_at    TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX idx_post_reads_post ON post_reads(post_id);
 
 -- ─── FOLLOWS ───────────────────────────────────────────────────────────────────
 CREATE TABLE follows (

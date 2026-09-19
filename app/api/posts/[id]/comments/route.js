@@ -19,6 +19,6 @@ export async function POST(req, { params }) {
   const body = await parseBody(req);
   if (!body?.text?.trim()) return err('Comment text is required');
 
-  const comment = await addComment(userId, id, body.text.trim());
+  const comment = await addComment(userId, id, body.text.trim(), body?.parentId || null);
   return ok({ comment }, 201);
 }
