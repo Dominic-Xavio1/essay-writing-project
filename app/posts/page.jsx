@@ -168,9 +168,9 @@ export default function PostsPage() {
         <section className="bg-secondary/40 border-b border-border/80 py-10">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="max-w-3xl">
-              <div className="inline-flex items-center gap-2 px-3 py-1 bg-primary/10 border border-primary/20 text-primary rounded-full text-xs font-semibold uppercase tracking-wider mb-3">
+              {/* <div className="inline-flex items-center gap-2 px-3 py-1 bg-primary/10 border border-primary/20 text-primary rounded-full text-xs font-semibold uppercase tracking-wider mb-3">
                 <Sparkles size={13} /> Curated Reading Feed
-              </div>
+              </div> */}
               <h1 className="font-serif text-3xl sm:text-4xl font-extrabold text-foreground tracking-tight mb-2">
                 Discover Thoughtful Writing
               </h1>

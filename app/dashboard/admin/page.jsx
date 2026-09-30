@@ -92,13 +92,15 @@ export default function SuperuserDashboardPage() {
       if (!res.ok) throw new Error(data.error || 'Action failed');
 
       setPosts((prev) => prev.filter((p) => p.id !== postId));
-      toast.success(
-        status === 'approved'
-          ? 'Post approved & published to Explore!'
-          : feedback
-          ? 'Feedback sent & post rejected!'
-          : 'Post rejected'
-      );
+      
+      if (status === 'approved') {
+        toast.success('Post approved & published to Explore!');
+      } else if (status === 'rejected' && feedback) {
+        toast.success('Feedback sent & post returned for revision!');
+      } else {
+        toast.success('Post rejected');
+      }
+      
       setFeedbackInput((prev) => ({ ...prev, [postId]: '' }));
       setActiveFeedbackId(null);
     } catch (err) {
@@ -246,12 +248,15 @@ export default function SuperuserDashboardPage() {
                     {activeFeedbackId === post.id && (
                       <div className="mt-4 pt-4 border-t border-border/60">
                         <label className="block text-xs font-bold text-foreground mb-1">
-                          Live Feedback to Author ({post.author?.name})
+                          Revision Feedback to Author ({post.author?.name})
                         </label>
+                        <p className="text-[11px] text-muted-foreground mb-2">
+                          Posts with feedback will be returned to the author as drafts for revision.
+                        </p>
                         <div className="flex gap-2">
                           <input
                             type="text"
-                            placeholder="Type feedback, suggestions or revision notes..."
+                            placeholder="Type revision requirements, suggestions or feedback..."
                             value={feedbackInput[post.id] || ''}
                             onChange={(e) =>
                               setFeedbackInput({ ...feedbackInput, [post.id]: e.target.value })
@@ -259,12 +264,12 @@ export default function SuperuserDashboardPage() {
                             className="flex-1 px-3 py-2 text-xs bg-secondary border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-primary text-foreground"
                           />
                           <Button
-                            variant="destructive"
+                            variant="outline"
                             size="sm"
                             disabled={actioningId === post.id}
                             onClick={() => handleModerate(post.id, 'rejected')}
                           >
-                            <Send size={13} /> Reject w/ Feedback
+                            <Send size={13} /> Request Revision
                           </Button>
                         </div>
                       </div>
@@ -298,7 +303,7 @@ export default function SuperuserDashboardPage() {
                             disabled={actioningId === post.id}
                             onClick={() => handleModerate(post.id, 'rejected')}
                           >
-                            <XCircle size={15} /> Reject Post
+                            <XCircle size={15} /> Reject
                           </Button>
                         )}
                         {post.status !== 'approved' && (

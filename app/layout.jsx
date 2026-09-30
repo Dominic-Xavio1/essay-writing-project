@@ -3,6 +3,15 @@ import { Analytics } from '@vercel/analytics/next'
 import { Toaster } from '@/components/ui/sonner'
 import './globals.css'
 
+// Initialize WebSocket server on server side
+if (typeof window === 'undefined') {
+  import('@/lib/ws-server').then(({ initWebSocketServer }) => {
+    initWebSocketServer();
+  }).catch(err => {
+    console.error('Failed to initialize WebSocket server:', err);
+  });
+}
+
 const _geist = Geist({ subsets: ["latin"] });
 const _geistMono = Geist_Mono({ subsets: ["latin"] });
 

@@ -26,6 +26,7 @@ import {
   Clock,
   Plus,
   ShieldCheck,
+  AlertCircle,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'sonner';
@@ -53,18 +54,38 @@ export default function DashboardPage() {
       .catch(() => router.push('/auth/login'))
       .finally(() => setLoading(false));
 
-    let unsubscribe = () => {};
+    let unsubscribeFeedback = () => {};
+    let unsubscribeMod = () => {};
     try {
       const { wsClient } = require('@/lib/websocket');
-      unsubscribe = wsClient.subscribe('SUPERUSER_FEEDBACK', (data) => {
-        toast.info(`💬 Feedback on "${data.postTitle}": ${data.feedback}`, {
-          duration: 8000,
+      unsubscribeFeedback = wsClient.subscribe('SUPERUSER_FEEDBACK', (data) => {
+        const isRevision = data.status === 'draft';
+        const message = isRevision 
+          ? `📝 Revision Required: "${data.postTitle}" - ${data.feedback}`
+          : `💬 Feedback on "${data.postTitle}": ${data.feedback}`;
+        
+        toast.info(message, {
+          duration: 10000,
+          action: isRevision ? {
+            label: 'Revise Now',
+            onClick: () => router.push('/dashboard')
+          } : undefined
         });
+        
+        // Refresh posts to show updated status
+        api.getMyPosts().then((postsRes) => setUserPosts(postsRes.posts || []));
+      });
+      
+      // Also listen for post moderation updates
+      unsubscribeMod = wsClient.subscribe('POST_MODERATED', (data) => {
         api.getMyPosts().then((postsRes) => setUserPosts(postsRes.posts || []));
       });
     } catch (err) {}
 
-    return () => unsubscribe();
+    return () => {
+      unsubscribeFeedback();
+      unsubscribeMod();
+    };
   }, [router]);
 
   const handleDelete = async (postId) => {
@@ -102,7 +123,8 @@ export default function DashboardPage() {
 
   const publishedPosts = userPosts.filter((p) => p.status === 'approved' || p.status === 'published');
   const pendingPosts = userPosts.filter((p) => p.status === 'pending');
-  const draftPosts = userPosts.filter((p) => p.status === 'draft');
+  const draftPosts = userPosts.filter((p) => p.status === 'draft' && !p.feedback);
+  const revisionPosts = userPosts.filter((p) => p.status === 'draft' && p.feedback);
 
   return (
     <>
@@ -306,6 +328,7 @@ export default function DashboardPage() {
               {[
                 { id: 'published', label: `Published (${publishedPosts.length})`, icon: FileText },
                 { id: 'pending', label: `Pending Approval (${pendingPosts.length})`, icon: Clock },
+                { id: 'revisions', label: `Revisions (${revisionPosts.length})`, icon: AlertCircle },
                 { id: 'drafts', label: `Drafts (${draftPosts.length})`, icon: Edit2 },
                 { id: 'bookmarked', label: 'Bookmarks', icon: Bookmark },
                 { id: 'analytics', label: 'Analytics Insights', icon: BarChart3 },
@@ -511,7 +534,7 @@ export default function DashboardPage() {
                         key={post.id}
                         className="bg-card border border-border p-5 rounded-2xl flex items-center justify-between hover:border-amber-400/40 transition-all shadow-xs"
                       >
-                        <div>
+                        <div className="flex-1 pr-4">
                           <div className="flex items-center gap-2 mb-1">
                             <span className="text-[10px] uppercase font-bold bg-amber-500/10 text-amber-600 px-2.5 py-0.5 rounded-full border border-amber-500/20">
                               Pending Review
@@ -523,6 +546,65 @@ export default function DashboardPage() {
                           <p className="text-xs text-muted-foreground line-clamp-1">{post.excerpt}</p>
                         </div>
                         <div className="flex gap-2">
+                          <button
+                            onClick={() => handleDelete(post.id)}
+                            className="p-2 bg-secondary hover:bg-rose-500/10 rounded-xl text-rose-500"
+                          >
+                            <Trash2 size={18} />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </motion.div>
+            )}
+
+            {activeTab === 'revisions' && (
+              <motion.div
+                key="revisions"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0 }}
+              >
+                {revisionPosts.length === 0 ? (
+                  <div className="text-center py-16 px-6 bg-card border border-border rounded-2xl max-w-lg mx-auto">
+                    <div className="w-14 h-14 rounded-full bg-rose-500/10 text-rose-500 flex items-center justify-center mx-auto mb-4 text-2xl">
+                      ✅
+                    </div>
+                    <h3 className="font-serif text-2xl font-bold text-foreground mb-2">No revisions needed</h3>
+                    <p className="text-muted-foreground text-sm leading-relaxed mb-6">
+                      You don't have any essays that need revision at this time.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {revisionPosts.map((post) => (
+                      <div
+                        key={post.id}
+                        className="bg-card border border-rose-500/30 p-5 rounded-2xl flex items-center justify-between hover:border-rose-500/60 transition-all shadow-xs bg-rose-50/5"
+                      >
+                        <div className="flex-1 pr-4">
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className="text-[10px] uppercase font-bold bg-rose-500/10 text-rose-600 px-2.5 py-0.5 rounded-full border border-rose-500/20 animate-pulse">
+                              Revision Required
+                            </span>
+                            <h4 className="font-serif font-bold text-base text-foreground">
+                              {post.title}
+                            </h4>
+                          </div>
+                          <p className="text-xs text-muted-foreground line-clamp-1 mb-2">{post.excerpt}</p>
+                          {post.feedback && (
+                            <div className="bg-rose-500/10 border border-rose-500/20 rounded-lg p-2">
+                              <p className="text-[11px] font-semibold text-rose-700 dark:text-rose-400 mb-1">Feedback:</p>
+                              <p className="text-[11px] text-rose-600 dark:text-rose-300">{post.feedback}</p>
+                            </div>
+                          )}
+                        </div>
+                        <div className="flex gap-2">
+                          <Button variant="green" size="sm" href={`/create?edit=${post.id}`}>
+                            <Edit2 size={14} /> Revise
+                          </Button>
                           <button
                             onClick={() => handleDelete(post.id)}
                             className="p-2 bg-secondary hover:bg-rose-500/10 rounded-xl text-rose-500"

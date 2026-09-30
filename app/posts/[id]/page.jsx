@@ -9,11 +9,13 @@ import { api } from '@/lib/api-client';
 import { Button } from '@/components/ui/customButton';
 import { ClapButton } from '@/components/ui/clap-button';
 import { AuthorHoverCard } from '@/components/ui/author-hover-card';
+import { EmojiPicker } from '@/components/ui/EmojiPicker';
+import { EmojiPickerPopover } from '@/components/ui/EmojiPickerPopover';
+import { CreativeLikeAnimation } from '@/components/ui/CreativeLikeAnimation';
 import {
   MessageCircle,
   Share2,
   Bookmark,
-  ThumbsUp,
   Clock,
   Sparkles,
   UserPlus,
@@ -22,14 +24,15 @@ import {
   Minimize2,
   Type,
   ArrowLeft,
+  Smile,
+  Send,
+  CornerDownRight,
+  TrendingUp,
+  X,
   Heart,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'sonner';
-
-import { HeartPopEffect } from '@/components/ui/HeartPopEffect';
-
-const REACTIONS = ['👍', '❤️', '😂', '😢', '🔥', '💯'];
 
 export default function PostDetailPage() {
   const params = useParams();
@@ -41,21 +44,29 @@ export default function PostDetailPage() {
   const [bookmarked, setBookmarked] = useState(false);
   const [selectedReaction, setSelectedReaction] = useState(null);
   const [showReactions, setShowReactions] = useState(false);
-  const [comments, setComments] = useState([]);
-  const [newComment, setNewComment] = useState('');
-  const [replyingToId, setReplyingToId] = useState(null);
-  const [replyText, setReplyText] = useState('');
-  const [loading, setLoading] = useState(true);
-  const [following, setFollowing] = useState(false);
-
   const [reactionCounts, setReactionCounts] = useState([]);
 
-  // Readers state controls
+  // Comments state
+  const [comments, setComments] = useState([]);
+  const [newComment, setNewComment] = useState('');
+  const [showCommentEmojiPicker, setShowCommentEmojiPicker] = useState(false);
+  const [replyingToId, setReplyingToId] = useState(null);
+  const [replyText, setReplyText] = useState('');
+  const [showReplyEmojiPicker, setShowReplyEmojiPicker] = useState(false);
+  const [commentSort, setCommentSort] = useState('newest'); // 'newest' | 'likes'
+  const [submittingComment, setSubmittingComment] = useState(false);
+
+  // Reader state
+  const [loading, setLoading] = useState(true);
+  const [following, setFollowing] = useState(false);
   const [scrollProgress, setScrollProgress] = useState(0);
   const [textSize, setTextSize] = useState('large');
   const [focusMode, setFocusMode] = useState(false);
 
-  // Read analytics periodic beacon tracking
+  // Image Lightbox state
+  const [lightboxOpen, setLightboxOpen] = useState(false);
+
+  // Periodic read analytics beacon
   useEffect(() => {
     if (!id) return;
     let secondsSpent = 0;
@@ -86,6 +97,7 @@ export default function PostDetailPage() {
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
+  // Fetch Post & Comments
   useEffect(() => {
     if (!id) return;
     api
@@ -212,26 +224,28 @@ export default function PostDetailPage() {
   const handleAddComment = async (parentId = null) => {
     const textToSend = parentId ? replyText : newComment;
     if (!textToSend.trim()) return;
-    try {
-      const res = await fetch(`/api/posts/${id}/comments`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: textToSend, parentId }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error);
 
-      setComments((prev) => [...prev, data.comment]);
+    setSubmittingComment(true);
+
+    try {
+      const data = await api.addComment(id, textToSend.trim(), parentId);
+      if (!data.comment) throw new Error(data.error || 'Failed to post comment');
+
+      setComments((prev) => [data.comment, ...prev]);
       if (parentId) {
         setReplyText('');
         setReplyingToId(null);
+        setShowReplyEmojiPicker(false);
       } else {
         setNewComment('');
+        setShowCommentEmojiPicker(false);
       }
       setPost((prev) => ({ ...prev, comments: (prev.comments || 0) + 1 }));
       toast.success(parentId ? 'Reply posted!' : 'Comment posted!');
-    } catch {
-      toast.error('Sign in to post comments');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Please sign in to post comments');
+    } finally {
+      setSubmittingComment(false);
     }
   };
 
@@ -261,9 +275,9 @@ export default function PostDetailPage() {
   };
 
   const handleShare = () => {
-    const text = `Check out: "${post.title}" on ASYV Writing`;
+    const text = `Check out: "${post.title}" on Post Your Work`;
     if (navigator.share) {
-      navigator.share({ title: 'ASYV Writing', text, url: window.location.href });
+      navigator.share({ title: 'Post Your Work', text, url: window.location.href });
     } else {
       navigator.clipboard.writeText(window.location.href);
       toast.success('Link copied to clipboard!');
@@ -282,12 +296,18 @@ export default function PostDetailPage() {
     xlarge: 'text-xl leading-loose',
   };
 
+  // Sort comments
+  const sortedComments = [...comments].sort((a, b) => {
+    if (commentSort === 'likes') return (b.likes || 0) - (a.likes || 0);
+    return new Date(b.created_at) - new Date(a.created_at);
+  });
+
   return (
     <>
       {/* Scroll Progress Bar */}
       <div className="fixed top-0 left-0 right-0 h-1 bg-secondary z-50">
         <div
-          className="h-full bg-emerald-600 transition-all duration-150 ease-out"
+          className="h-full bg-gradient-to-r from-emerald-500 to-teal-400 transition-all duration-150 ease-out shadow-[0_0_10px_rgba(16,185,129,0.5)]"
           style={{ width: `${scrollProgress}%` }}
         />
       </div>
@@ -295,21 +315,58 @@ export default function PostDetailPage() {
       {!focusMode && <Header />}
 
       <main className="min-h-screen bg-background pb-32">
+        {/* Modern Editorial Featured Image Hero (Fixes Blur/Quality Issues) */}
         {post.featured_image && (
-          <div className="w-full h-80 sm:h-96 md:h-[450px] relative overflow-hidden bg-secondary">
-            <img src={post.featured_image} alt={post.title} className="w-full h-full object-cover" />
-            <div className="absolute inset-0 bg-gradient-to-t from-background via-transparent to-transparent opacity-80" />
+          <div className="relative w-full max-w-5xl mx-auto pt-6 sm:pt-10 px-4 sm:px-6">
+            <div className="relative group overflow-hidden rounded-3xl border border-border/80 shadow-2xl bg-secondary/50 backdrop-blur-md">
+              {/* High resolution Ambient Blurred Glow Behind Image */}
+              <div
+                className="absolute inset-0 filter blur-3xl opacity-35 scale-110 pointer-events-none transition-transform duration-700 group-hover:scale-125"
+                style={{
+                  backgroundImage: `url(${post.featured_image})`,
+                  backgroundSize: 'cover',
+                  backgroundPosition: 'center',
+                }}
+              />
+
+              {/* Pristine Crisp Foreground Image Container */}
+              <div className="relative w-full h-[320px] sm:h-[420px] md:h-[500px] overflow-hidden flex items-center justify-center bg-black/5">
+                <img
+                  src={post.featured_image}
+                  alt={post.title}
+                  className="w-full h-full object-cover object-center group-hover:scale-103 transition-transform duration-700 ease-out filter contrast-[1.02] saturate-[1.05]"
+                  style={{ imageRendering: '-webkit-optimize-contrast' }}
+                />
+
+                {/* Subtle Gradient Vignette Overlays for Depth */}
+                <div className="absolute inset-0 bg-gradient-to-t from-background/90 via-background/20 to-transparent opacity-90" />
+                <div className="absolute inset-0 bg-gradient-to-b from-black/30 via-transparent to-transparent opacity-60" />
+
+                {/* Lightbox Zoom Trigger Overlay */}
+                <button
+                  onClick={() => setLightboxOpen(true)}
+                  className="absolute bottom-4 right-4 p-2.5 rounded-full bg-card/80 backdrop-blur-md border border-border text-foreground opacity-0 group-hover:opacity-100 transition-opacity duration-300 hover:scale-110 shadow-lg"
+                  title="View full resolution image"
+                >
+                  <Maximize2 size={16} />
+                </button>
+              </div>
+            </div>
           </div>
         )}
 
-        <article className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 pt-10 pb-16">
+        {/* Article Container */}
+        <article className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 pt-8 pb-16">
           {/* Category & Tags */}
           <div className="mb-6 flex flex-wrap gap-2 items-center">
-            <span className="text-xs uppercase tracking-wider bg-primary/10 text-primary font-bold px-3 py-1 rounded-full">
+            <span className="text-xs font-extrabold uppercase tracking-wider bg-primary/10 text-primary px-3.5 py-1.5 rounded-full border border-primary/20 shadow-xs">
               {post.category}
             </span>
-            {post.tags.map((tag) => (
-              <span key={tag} className="text-xs text-muted-foreground bg-secondary px-2.5 py-1 rounded-full">
+            {post.tags?.map((tag) => (
+              <span
+                key={tag}
+                className="text-xs text-muted-foreground bg-secondary/80 border border-border/60 px-3 py-1 rounded-full font-medium"
+              >
                 #{tag}
               </span>
             ))}
@@ -324,7 +381,7 @@ export default function PostDetailPage() {
           <div className="flex items-center justify-between gap-4 mb-10 pb-8 border-b border-border/80">
             {post.author && (
               <AuthorHoverCard author={post.author}>
-                <div className="flex items-center gap-3.5 group">
+                <div className="flex items-center gap-3.5 group cursor-pointer">
                   <img
                     src={post.author.avatar || '/placeholder-user.jpg'}
                     alt={post.author.name}
@@ -371,19 +428,20 @@ export default function PostDetailPage() {
             dangerouslySetInnerHTML={{ __html: post.content }}
           />
 
-          {/* Reactions bar */}
-          <div className="bg-card border border-border rounded-2xl p-6 mb-16 shadow-xs">
+          {/* Reader Actions & Reactions Bar */}
+          <div className="bg-card/90 backdrop-blur-md border border-border rounded-2xl p-6 mb-16 shadow-lg relative">
             <h3 className="font-bold text-sm text-foreground mb-4 flex items-center gap-2">
-              <Sparkles size={16} className="text-amber-500" /> Reader Reactions
+              <Sparkles size={16} className="text-amber-500 animate-pulse" /> Express Your Thoughts
             </h3>
+
             <div className="flex flex-wrap items-center gap-3">
               <ClapButton initialCount={post.likes} onClap={handleLike} size="lg" />
 
               <button
                 onClick={handleBookmark}
-                className={`flex items-center gap-2 px-4 py-2 rounded-full text-xs font-semibold border transition-all ${
+                className={`flex items-center gap-2 px-4 py-2.5 rounded-full text-xs font-semibold border transition-all ${
                   bookmarked
-                    ? 'bg-amber-500/10 text-amber-600 border-amber-300 dark:border-amber-900'
+                    ? 'bg-amber-500/10 text-amber-600 border-amber-300 dark:border-amber-900 shadow-xs'
                     : 'bg-secondary border-border text-muted-foreground hover:text-foreground'
                 }`}
               >
@@ -393,43 +451,33 @@ export default function PostDetailPage() {
 
               <button
                 onClick={handleShare}
-                className="flex items-center gap-2 px-4 py-2 rounded-full text-xs font-semibold bg-secondary border border-border text-muted-foreground hover:text-foreground transition-all"
+                className="flex items-center gap-2 px-4 py-2.5 rounded-full text-xs font-semibold bg-secondary border border-border text-muted-foreground hover:text-foreground transition-all"
               >
                 <Share2 size={16} /> Share
               </button>
 
-              <div className="relative">
-                <button
-                  onClick={() => setShowReactions(!showReactions)}
-                  className="flex items-center gap-2 px-4 py-2 rounded-full text-xs font-semibold bg-secondary border border-border text-muted-foreground hover:text-foreground transition-all"
-                >
-                  <span>{selectedReaction ? `Reacted ${selectedReaction}` : '✨ Add Reaction'}</span>
-                </button>
-                {showReactions && (
-                  <div className="absolute top-full mt-2 left-0 bg-card border border-border rounded-xl shadow-xl p-3 flex gap-2 z-20">
-                    {REACTIONS.map((reaction) => (
-                      <button
-                        key={reaction}
-                        onClick={() => handleReaction(reaction)}
-                        className={`text-2xl hover:scale-130 transition-transform p-1 rounded-lg ${
-                          selectedReaction === reaction ? 'bg-secondary ring-2 ring-primary' : ''
-                        }`}
-                      >
-                        {reaction}
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
+              {/* Reaction Trigger with Modern Emoji Picker Dropdown */}
+              <EmojiPickerPopover
+                side="bottom"
+                align="start"
+                onSelectEmoji={(emoji) => handleReaction(emoji)}
+                trigger={
+                  <button className="flex items-center gap-2 px-4 py-2.5 rounded-full text-xs font-semibold bg-secondary border border-border text-muted-foreground hover:text-foreground transition-all cursor-pointer">
+                    <Smile size={16} className="text-amber-500" />
+                    <span>{selectedReaction ? `Reacted ${selectedReaction}` : '✨ Add Reaction'}</span>
+                  </button>
+                }
+              />
 
+              {/* Display existing reaction counts */}
               {reactionCounts.map((rc) => (
                 <button
                   key={rc.emoji}
                   onClick={() => handleReaction(rc.emoji)}
-                  className={`flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${
                     selectedReaction === rc.emoji
-                      ? 'bg-primary/10 border-primary text-primary'
-                      : 'bg-secondary border-border text-muted-foreground'
+                      ? 'bg-primary/10 border-primary text-primary shadow-xs'
+                      : 'bg-secondary border-border text-muted-foreground hover:text-foreground'
                   }`}
                 >
                   <span>{rc.emoji}</span>
@@ -439,156 +487,285 @@ export default function PostDetailPage() {
             </div>
           </div>
 
-          {/* Comments Section */}
+          {/* Upgraded Comments Section */}
           <section id="comments" className="mb-16">
-            <h2 className="font-serif text-2xl font-bold mb-6 text-foreground">
-              Comments ({comments.length})
-            </h2>
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="font-serif text-2xl font-bold text-foreground flex items-center gap-2.5">
+                <MessageCircle size={22} className="text-primary" />
+                Comments ({comments.length})
+              </h2>
 
-            <div className="bg-card border border-border rounded-2xl p-6 mb-8 shadow-xs">
+              {/* Comments Sort Dropdown */}
+              {comments.length > 1 && (
+                <div className="flex items-center gap-1 bg-secondary/80 p-1 rounded-xl border border-border/60 text-xs">
+                  <button
+                    onClick={() => setCommentSort('newest')}
+                    className={`px-3 py-1 rounded-lg font-medium transition-all ${
+                      commentSort === 'newest'
+                        ? 'bg-card text-foreground shadow-xs'
+                        : 'text-muted-foreground hover:text-foreground'
+                    }`}
+                  >
+                    Newest
+                  </button>
+                  <button
+                    onClick={() => setCommentSort('likes')}
+                    className={`px-3 py-1 rounded-lg font-medium transition-all flex items-center gap-1 ${
+                      commentSort === 'likes'
+                        ? 'bg-card text-foreground shadow-xs'
+                        : 'text-muted-foreground hover:text-foreground'
+                    }`}
+                  >
+                    <TrendingUp size={12} /> Top
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* Comment Composer */}
+            <div className="bg-card border border-border rounded-2xl p-5 mb-8 shadow-md relative z-30">
               <textarea
                 value={newComment}
                 onChange={(e) => setNewComment(e.target.value)}
                 placeholder="What are your thoughts on this essay?"
                 rows={3}
-                className="w-full px-4 py-3 bg-secondary border border-border rounded-xl text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary resize-none mb-4"
+                maxLength={1000}
+                className="w-full px-4 py-3 bg-secondary/70 border border-border/80 rounded-xl text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary resize-none mb-3 placeholder:text-muted-foreground"
               />
+
               <div className="flex items-center justify-between">
-                {newComment.trim().length > 0 ? (
-                  <div className="flex items-center gap-2 text-xs text-emerald-600 font-medium animate-pulse">
-                    <span className="w-2 h-2 rounded-full bg-emerald-500" />
-                    <span>Writing comment...</span>
-                  </div>
-                ) : (
-                  <div />
-                )}
+                <div className="flex items-center gap-2">
+                  <EmojiPickerPopover
+                    side="top"
+                    align="start"
+                    onSelectEmoji={(emoji) => setNewComment((prev) => prev + emoji)}
+                    trigger={
+                      <button
+                        type="button"
+                        className="p-2 rounded-xl text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors cursor-pointer"
+                        title="Insert emoji"
+                      >
+                        <Smile size={18} className="text-amber-500" />
+                      </button>
+                    }
+                  />
+
+                  <span className="text-[11px] text-muted-foreground">
+                    {newComment.length}/1000
+                  </span>
+                </div>
+
                 <Button
                   variant="accent"
                   size="sm"
-                  onClick={handleAddComment}
-                  disabled={!newComment.trim()}
+                  onClick={() => handleAddComment(null)}
+                  disabled={!newComment.trim() || submittingComment}
+                  className="flex items-center gap-1.5 px-4 py-2"
                 >
-                  Post Comment
+                  {submittingComment ? (
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  ) : (
+                    <>
+                      <Send size={14} /> Post Comment
+                    </>
+                  )}
                 </Button>
               </div>
             </div>
 
-            <div className="space-y-6">
-              {comments
-                .filter((c) => !c.parentId)
-                .map((comment) => {
-                  const replies = comments.filter((r) => r.parentId === comment.id);
-                  return (
-                    <div key={comment.id} className="bg-card border border-border p-5 rounded-2xl shadow-xs">
-                      <div className="flex gap-4">
-                        <img
-                          src={comment.avatar || '/placeholder-user.jpg'}
-                          alt={comment.author}
-                          className="w-10 h-10 rounded-full object-cover flex-shrink-0 ring-2 ring-primary/10"
-                        />
-                        <div className="flex-1">
-                          <div className="flex items-center justify-between mb-1">
-                            <p className="font-bold text-sm text-foreground">{comment.author}</p>
-                            <span className="text-[11px] text-muted-foreground">
-                              {new Date(comment.created_at).toLocaleDateString()}
-                            </span>
-                          </div>
-                          <p className="text-muted-foreground text-sm leading-relaxed mb-3">{comment.text}</p>
-                          <div className="flex items-center gap-4">
-                            <HeartPopEffect
-                              isLiked={comment.likedByViewer}
-                              onToggle={() => handleLikeComment(comment.id)}
-                            >
-                              <div
-                                className={`text-xs flex items-center gap-1.5 font-medium px-3 py-1 rounded-full border transition-all ${
-                                  comment.likedByViewer
-                                    ? 'text-rose-600 bg-rose-50 border-rose-200 dark:bg-rose-950/40 dark:border-rose-900'
-                                    : 'text-muted-foreground border-border hover:text-foreground hover:bg-secondary'
-                                }`}
-                              >
-                                <span>{comment.likedByViewer ? '❤️' : '🤍'}</span>
-                                <span>{comment.likes}</span>
-                              </div>
-                            </HeartPopEffect>
+            {/* Comments Feed */}
+            {sortedComments.length === 0 ? (
+              <div className="text-center py-12 px-6 bg-card/60 border border-border/80 rounded-2xl">
+                <div className="w-12 h-12 rounded-full bg-secondary flex items-center justify-center mx-auto mb-3 text-2xl">
+                  💬
+                </div>
+                <p className="font-medium text-foreground text-sm mb-1">No comments yet</p>
+                <p className="text-xs text-muted-foreground">
+                  Be the first to share your thoughts on this essay!
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {sortedComments
+                  .filter((c) => !c.parentId)
+                  .map((comment) => {
+                    const replies = sortedComments.filter((r) => r.parentId === comment.id);
+                    const isAuthor = comment.user_id === post.author_id;
 
-                            <button
-                              onClick={() => setReplyingToId(replyingToId === comment.id ? null : comment.id)}
-                              className="text-xs font-semibold text-primary hover:underline flex items-center gap-1"
-                            >
-                              <MessageCircle size={13} /> Reply
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Reply Input Drawer */}
-                      {replyingToId === comment.id && (
-                        <div className="mt-4 ml-12 pt-3 border-t border-border/60">
-                          <div className="flex gap-2">
-                            <input
-                              type="text"
-                              value={replyText}
-                              onChange={(e) => setReplyText(e.target.value)}
-                              placeholder={`Reply to ${comment.author}...`}
-                              className="flex-1 px-3.5 py-2 text-xs bg-secondary border border-border rounded-xl text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
-                            />
-                            <Button
-                              variant="accent"
-                              size="sm"
-                              disabled={!replyText.trim()}
-                              onClick={() => handleAddComment(comment.id)}
-                            >
-                              Send Reply
-                            </Button>
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Sub-comments / Nested Replies */}
-                      {replies.length > 0 && (
-                        <div className="mt-4 ml-8 sm:ml-12 space-y-3 pt-3 border-t border-border/50">
-                          {replies.map((reply) => (
-                            <div key={reply.id} className="flex gap-3 bg-secondary/50 border border-border/60 p-3.5 rounded-xl">
-                              <img
-                                src={reply.avatar || '/placeholder-user.jpg'}
-                                alt={reply.author}
-                                className="w-8 h-8 rounded-full object-cover flex-shrink-0 ring-1 ring-primary/20"
-                              />
-                              <div className="flex-1">
-                                <div className="flex items-center justify-between mb-0.5">
-                                  <p className="font-bold text-xs text-foreground">{reply.author}</p>
-                                  <span className="text-[10px] text-muted-foreground">
-                                    {new Date(reply.created_at).toLocaleDateString()}
+                    return (
+                      <motion.div
+                        key={comment.id}
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="bg-card border border-border/80 p-5 rounded-2xl shadow-xs hover:border-border transition-all"
+                      >
+                        <div className="flex gap-3.5">
+                          <img
+                            src={comment.avatar || '/placeholder-user.jpg'}
+                            alt={comment.author}
+                            className="w-10 h-10 rounded-full object-cover flex-shrink-0 ring-2 ring-primary/10"
+                          />
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center justify-between mb-1">
+                              <div className="flex items-center gap-2">
+                                <p className="font-bold text-sm text-foreground">{comment.author}</p>
+                                {isAuthor && (
+                                  <span className="text-[10px] uppercase font-extrabold px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20">
+                                    Author
                                   </span>
-                                </div>
-                                <p className="text-muted-foreground text-xs leading-relaxed mb-2">{reply.text}</p>
-                                <HeartPopEffect
-                                  isLiked={reply.likedByViewer}
-                                  onToggle={() => handleLikeComment(reply.id)}
-                                >
-                                  <div
-                                    className={`text-[11px] inline-flex items-center gap-1 font-medium px-2.5 py-0.5 rounded-full border transition-all ${
-                                      reply.likedByViewer
-                                        ? 'text-rose-600 bg-rose-50 border-rose-200 dark:bg-rose-950/40'
-                                        : 'text-muted-foreground border-border hover:text-foreground'
-                                    }`}
-                                  >
-                                    <span>{reply.likedByViewer ? '❤️' : '🤍'}</span>
-                                    <span>{reply.likes}</span>
-                                  </div>
-                                </HeartPopEffect>
+                                )}
                               </div>
+                              <span className="text-[11px] text-muted-foreground">
+                                {new Date(comment.created_at).toLocaleDateString()}
+                              </span>
                             </div>
-                          ))}
+
+                            <p className="text-foreground/90 text-sm leading-relaxed mb-3 whitespace-pre-wrap">
+                              {comment.text}
+                            </p>
+
+                            <div className="flex items-center gap-4">
+                              {/* Instagram / TikTok Inspired Interactive Particle Like Animation */}
+                              <CreativeLikeAnimation
+                                isLiked={comment.likedByViewer}
+                                onToggle={() => handleLikeComment(comment.id)}
+                              >
+                                <div
+                                  className={`text-xs flex items-center gap-1.5 font-semibold px-3 py-1 rounded-full border transition-all ${
+                                    comment.likedByViewer
+                                      ? 'text-rose-600 bg-rose-50 border-rose-200 dark:bg-rose-950/50 dark:border-rose-900 shadow-xs'
+                                      : 'text-muted-foreground border-border/80 hover:text-foreground hover:bg-secondary'
+                                  }`}
+                                >
+                                  <Heart
+                                    size={14}
+                                    className={comment.likedByViewer ? 'fill-rose-500 text-rose-500' : ''}
+                                  />
+                                  <span>{comment.likes || 0}</span>
+                                </div>
+                              </CreativeLikeAnimation>
+
+                              <button
+                                onClick={() =>
+                                  setReplyingToId(replyingToId === comment.id ? null : comment.id)
+                                }
+                                className="text-xs font-semibold text-muted-foreground hover:text-primary transition-colors flex items-center gap-1"
+                              >
+                                <CornerDownRight size={13} /> Reply
+                              </button>
+                            </div>
+                          </div>
                         </div>
-                      )}
-                    </div>
-                  );
-                })}
-            </div>
+
+                        {/* Reply Drawer */}
+                        <AnimatePresence>
+                          {replyingToId === comment.id && (
+                            <motion.div
+                              initial={{ opacity: 0, height: 0 }}
+                              animate={{ opacity: 1, height: 'auto' }}
+                              exit={{ opacity: 0, height: 0 }}
+                              className="mt-4 ml-10 pl-3 border-l-2 border-primary/30 pt-3 relative"
+                            >
+                              <div className="relative flex gap-2">
+                                <input
+                                  type="text"
+                                  value={replyText}
+                                  onChange={(e) => setReplyText(e.target.value)}
+                                  placeholder={`Reply to ${comment.author}...`}
+                                  className="flex-1 px-3.5 py-2 text-xs bg-secondary border border-border rounded-xl text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                                />
+
+                                <EmojiPickerPopover
+                                  side="top"
+                                  align="end"
+                                  onSelectEmoji={(emoji) => setReplyText((prev) => prev + emoji)}
+                                  trigger={
+                                    <button
+                                      type="button"
+                                      className="p-2 rounded-xl text-muted-foreground hover:text-foreground hover:bg-secondary cursor-pointer"
+                                      title="Insert emoji"
+                                    >
+                                      <Smile size={16} className="text-amber-500" />
+                                    </button>
+                                  }
+                                />
+
+                                <Button
+                                  variant="accent"
+                                  size="sm"
+                                  disabled={!replyText.trim() || submittingComment}
+                                  onClick={() => handleAddComment(comment.id)}
+                                >
+                                  Reply
+                                </Button>
+                              </div>
+                            </motion.div>
+                          )}
+                        </AnimatePresence>
+
+                        {/* Sub-comments / Nested Replies */}
+                        {replies.length > 0 && (
+                          <div className="mt-4 ml-8 sm:ml-10 space-y-3 pt-3 border-t border-border/50">
+                            {replies.map((reply) => (
+                              <div
+                                key={reply.id}
+                                className="flex gap-3 bg-secondary/40 border border-border/50 p-3.5 rounded-xl"
+                              >
+                                <img
+                                  src={reply.avatar || '/placeholder-user.jpg'}
+                                  alt={reply.author}
+                                  className="w-7 h-7 rounded-full object-cover flex-shrink-0 ring-1 ring-primary/20"
+                                />
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center justify-between mb-0.5">
+                                    <div className="flex items-center gap-1.5">
+                                      <p className="font-bold text-xs text-foreground">{reply.author}</p>
+                                      {reply.user_id === post.author_id && (
+                                        <span className="text-[9px] uppercase font-extrabold px-1.5 py-0.2 rounded-full bg-primary/10 text-primary">
+                                          Author
+                                        </span>
+                                      )}
+                                    </div>
+                                    <span className="text-[10px] text-muted-foreground">
+                                      {new Date(reply.created_at).toLocaleDateString()}
+                                    </span>
+                                  </div>
+
+                                  <p className="text-foreground/90 text-xs leading-relaxed mb-2 whitespace-pre-wrap">
+                                    {reply.text}
+                                  </p>
+
+                                  <CreativeLikeAnimation
+                                    isLiked={reply.likedByViewer}
+                                    onToggle={() => handleLikeComment(reply.id)}
+                                  >
+                                    <div
+                                      className={`text-[11px] inline-flex items-center gap-1 font-semibold px-2.5 py-0.5 rounded-full border transition-all ${
+                                        reply.likedByViewer
+                                          ? 'text-rose-600 bg-rose-50 border-rose-200 dark:bg-rose-950/40'
+                                          : 'text-muted-foreground border-border/60 hover:text-foreground'
+                                      }`}
+                                    >
+                                      <Heart
+                                        size={12}
+                                        className={reply.likedByViewer ? 'fill-rose-500 text-rose-500' : ''}
+                                      />
+                                      <span>{reply.likes || 0}</span>
+                                    </div>
+                                  </CreativeLikeAnimation>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </motion.div>
+                    );
+                  })}
+              </div>
+            )}
           </section>
 
-          {/* More Essays */}
+          {/* Recommended Essays */}
           {related.length > 0 && (
             <section className="border-t border-border/80 pt-12">
               <h2 className="font-serif text-2xl font-bold mb-6 text-foreground">Recommended Essays</h2>
@@ -655,7 +832,6 @@ export default function PostDetailPage() {
 
         <div className="h-4 w-px bg-border" />
 
-        {/* Text Size Adjuster Toggle */}
         <button
           onClick={cycleTextSize}
           className="flex items-center gap-1 text-xs font-semibold px-2 py-1 bg-secondary rounded-full text-muted-foreground hover:text-foreground transition-colors"
@@ -665,7 +841,6 @@ export default function PostDetailPage() {
           <span className="text-[10px] uppercase font-bold">{textSize[0]}</span>
         </button>
 
-        {/* Focus Mode Trigger */}
         <button
           onClick={() => {
             setFocusMode(!focusMode);
@@ -679,6 +854,34 @@ export default function PostDetailPage() {
           {focusMode ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
         </button>
       </motion.div>
+
+      {/* Fullscreen High-Res Image Lightbox */}
+      <AnimatePresence>
+        {lightboxOpen && post.featured_image && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => setLightboxOpen(false)}
+            className="fixed inset-0 z-50 bg-black/90 backdrop-blur-xl flex items-center justify-center p-4 sm:p-8 cursor-zoom-out"
+          >
+            <button
+              onClick={() => setLightboxOpen(false)}
+              className="absolute top-6 right-6 p-3 rounded-full bg-white/10 text-white hover:bg-white/20 transition-colors"
+            >
+              <X size={20} />
+            </button>
+            <motion.img
+              initial={{ scale: 0.9 }}
+              animate={{ scale: 1 }}
+              exit={{ scale: 0.9 }}
+              src={post.featured_image}
+              alt={post.title}
+              className="max-w-full max-h-[90vh] object-contain rounded-2xl shadow-2xl border border-white/10"
+            />
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {!focusMode && <Footer />}
     </>

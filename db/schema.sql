@@ -9,6 +9,7 @@ CREATE TABLE users (
     password_hash   VARCHAR(255) NOT NULL,
     avatar          TEXT DEFAULT '',
     bio             TEXT DEFAULT '',
+    is_superuser    BOOLEAN DEFAULT FALSE,
     is_private      BOOLEAN DEFAULT FALSE,
     email_notifications BOOLEAN DEFAULT TRUE,
     push_notifications  BOOLEAN DEFAULT TRUE,
@@ -25,7 +26,8 @@ CREATE TABLE posts (
     content         TEXT NOT NULL DEFAULT '',
     featured_image  TEXT DEFAULT '',
     category        VARCHAR(100) DEFAULT 'Personal',
-    status          VARCHAR(20) DEFAULT 'draft' CHECK (status IN ('draft', 'published')),
+    status          VARCHAR(20) DEFAULT 'draft' CHECK (status IN ('draft', 'pending', 'approved', 'published', 'rejected')),
+    feedback        TEXT DEFAULT '',
     read_time       INTEGER DEFAULT 1,
     shares          INTEGER DEFAULT 0,
     created_at      TIMESTAMPTZ DEFAULT NOW(),
@@ -129,5 +131,20 @@ CREATE TRIGGER users_updated_at BEFORE UPDATE ON users
 
 CREATE TRIGGER posts_updated_at BEFORE UPDATE ON posts
     FOR EACH ROW EXECUTE PROCEDURE update_updated_at();
+
+-- ─── NOTIFICATIONS ───────────────────────────────────────────────────────────────
+CREATE TABLE notifications (
+    id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id    UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    title      VARCHAR(255) NOT NULL,
+    message    TEXT NOT NULL,
+    type       VARCHAR(20) DEFAULT 'info' CHECK (type IN ('info', 'success', 'warning', 'error', 'moderation')),
+    link       TEXT DEFAULT '',
+    is_read    BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX idx_notifications_user ON notifications(user_id);
+CREATE INDEX idx_notifications_read ON notifications(is_read);
 
 

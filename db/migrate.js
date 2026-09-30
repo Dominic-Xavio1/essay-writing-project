@@ -143,12 +143,13 @@ async function createMissingTables() {
     `);
     console.log("✅ Users schema updated (is_superuser column & nullable password_hash)");
 
-    // Update posts status check constraint to support pending, approved, rejected
+    // Update posts table schema (feedback column and status constraint)
     await pool.query(`
+      ALTER TABLE posts ADD COLUMN IF NOT EXISTS feedback TEXT DEFAULT '';
       ALTER TABLE posts DROP CONSTRAINT IF EXISTS posts_status_check;
       ALTER TABLE posts ADD CONSTRAINT posts_status_check CHECK (status IN ('draft', 'pending', 'approved', 'rejected', 'published'));
     `);
-    console.log("✅ Posts status check constraint updated");
+    console.log("✅ Posts status check constraint & feedback column updated");
 
     // Create notifications table
     await pool.query(`

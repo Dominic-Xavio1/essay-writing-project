@@ -3,7 +3,7 @@
 import * as React from "react";
 import { createPortal } from "react-dom";
 import { motion, useAnimationControls, useReducedMotion } from "motion/react";
-import { Button } from "@/components/ui/button";
+import { Button } from "@/components/ui/customButton";
 
 const MotionButton = motion.create(Button);
 

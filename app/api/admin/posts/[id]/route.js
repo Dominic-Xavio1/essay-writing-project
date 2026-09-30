@@ -11,8 +11,8 @@ export async function PATCH(req, { params }) {
   const status = body?.status;
   const feedback = body?.feedback || '';
 
-  if (!['approved', 'rejected', 'pending'].includes(status)) {
-    return err('Invalid status. Expected approved, rejected, or pending.');
+  if (!['approved', 'rejected', 'pending', 'draft'].includes(status)) {
+    return err('Invalid status. Expected approved, rejected, pending, or draft.');
   }
 
   const post = await moderatePost(id, status, feedback);
