@@ -1,0 +1,3748 @@
+From 42a7ce855f3b665721b0218e3944b7b829409a43 Mon Sep 17 00:00:00 2001
+From: Devin AI <158243242+devin-ai-integration[bot]@users.noreply.github.com>
+Date: Fri, 2 Oct 2026 13:14:18 +0000
+Subject: [PATCH] Redesign UI as a Padlet-style ASYV canvas
+
+- New green/orange canvas theme, Nunito/Bricolage Grotesque/Caveat fonts
+- EssayCard sticky notes, MasonryBoard and draggable FreeformBoard
+- Localized home dashboard, board-style Explore, dashboard restyle
+- Floating canvas-sheet editor, refreshed header/footer/buttons
+- Page transitions via app/template.jsx
+
+Co-Authored-By: Dominic Xavio Imanishimwe <dominicxavio09@gmail.com>
+---
+ app/create/CreateForm.jsx            | 502 +++++++++++---------
+ app/dashboard/page.jsx               | 235 ++++------
+ app/globals.css                      | 248 +++++++---
+ app/layout.jsx                       |  11 +-
+ app/page.jsx                         | 520 ++++++++++++---------
+ app/posts/page.jsx                   | 653 +++++++++++++--------------
+ app/template.jsx                     |  15 +
+ components/board/EssayCard.jsx       | 165 +++++++
+ components/board/FreeformBoard.jsx   | 147 ++++++
+ components/board/MasonryBoard.jsx    |  21 +
+ components/editor/RichTextEditor.jsx |  44 +-
+ components/shared/Footer.jsx         | 110 ++---
+ components/shared/Header.jsx         |  40 +-
+ components/ui/customButton.jsx       |  16 +-
+ lib/board.js                         |  56 +++
+ 15 files changed, 1639 insertions(+), 1144 deletions(-)
+ create mode 100644 app/template.jsx
+ create mode 100644 components/board/EssayCard.jsx
+ create mode 100644 components/board/FreeformBoard.jsx
+ create mode 100644 components/board/MasonryBoard.jsx
+ create mode 100644 lib/board.js
+
+diff --git a/app/create/CreateForm.jsx b/app/create/CreateForm.jsx
+index 1ca36cf..a07e056 100644
+--- a/app/create/CreateForm.jsx
++++ b/app/create/CreateForm.jsx
+@@ -3,24 +3,36 @@
+ import { useState, useEffect } from 'react';
+ import Link from 'next/link';
+ import { useRouter, useSearchParams } from 'next/navigation';
++import { motion, AnimatePresence } from 'framer-motion';
+ import { Header } from '@/components/shared/Header';
+-import { Footer } from '@/components/shared/Footer';
+ import { RichTextEditor } from '@/components/editor/RichTextEditor';
+ import { api } from '@/lib/api-client';
+ import { categories } from '@/lib/posts';
+-import { Button } from '@/components/ui/customButton';
++import { categoryMeta } from '@/lib/board';
+ import {
+-  Upload,
+   X,
+-  Sparkles,
+   Clock,
+-  Check,
+-  ImageIcon,
+-  Tag as TagIcon,
+-  ArrowLeft,
+-  BookOpen,
++  ImagePlus,
++  Hash,
++  Send,
++  Save,
++  Lightbulb,
++  Sparkles,
++  Loader2,
++  Sunrise,
++  Users,
++  Wrench,
++  Flag,
+ } from 'lucide-react';
+ import { toast } from 'sonner';
++import { cn } from '@/lib/utils';
++
++const SPARKS = [
++  { icon: Sunrise, tone: 'text-accent', text: 'A morning on the hill you will never forget' },
++  { icon: Users, tone: 'text-primary', text: 'Someone in your family (village family counts!) who changed you' },
++  { icon: Wrench, tone: 'text-sky-600', text: 'A problem at school you would love to fix' },
++  { icon: Flag, tone: 'text-violet-600', text: 'What Rwanda will look like when you are 30' },
++];
+ 
+ export function CreateForm() {
+   const router = useRouter();
+@@ -53,20 +65,17 @@ export function CreateForm() {
+       .catch(() => toast.error('Failed to load essay'));
+   }, [editId]);
+ 
+-  // Strip HTML tags for clean word & character count
+   const plainTextContent = content.replace(/<[^>]*>/g, '').trim();
+-  const characterCount = plainTextContent.length;
+   const wordCount = plainTextContent ? plainTextContent.split(/\s+/).length : 0;
+   const estimatedReadTime = Math.max(1, Math.ceil(wordCount / 200));
+-
+-  // Word goal target calculation for SVG progress ring (target: 500 words)
+   const targetWords = 500;
+   const wordProgress = Math.min(100, Math.round((wordCount / targetWords) * 100));
+ 
+   const handleAddTag = (e) => {
+-    if (e.key === 'Enter' && tagInput.trim()) {
++    if ((e.key === 'Enter' || e.key === ',') && tagInput.trim()) {
+       e.preventDefault();
+-      if (!tags.includes(tagInput.trim())) setTags([...tags, tagInput.trim()]);
++      const clean = tagInput.trim().replace(/^#/, '');
++      if (clean && !tags.includes(clean)) setTags([...tags, clean]);
+       setTagInput('');
+     }
+   };
+@@ -79,7 +88,7 @@ export function CreateForm() {
+     const reader = new FileReader();
+     reader.onload = (event) => setFeaturedImage(event.target?.result);
+     reader.readAsDataURL(file);
+-    toast.success('Cover image uploaded');
++    toast.success('Cover image added 🖼️');
+   };
+ 
+   const handleImageUpload = (e) => {
+@@ -106,11 +115,11 @@ export function CreateForm() {
+ 
+   const submit = async (status) => {
+     if (!title.trim()) {
+-      toast.error('Please add a title to your essay');
++      toast.error('Give your note a title first ✏️');
+       return;
+     }
+     if (status === 'published' && (!excerpt.trim() || !content.trim())) {
+-      toast.error('Please complete title, summary excerpt, and content before publishing');
++      toast.error('Add a one-line summary and some content before pinning');
+       return;
+     }
+ 
+@@ -127,15 +136,15 @@ export function CreateForm() {
+       };
+       if (editId) {
+         await api.updatePost(editId, body);
+-        toast.success(status === 'draft' ? 'Draft updated!' : 'Essay updated successfully!');
++        toast.success(status === 'draft' ? 'Draft updated!' : 'Note updated!');
+       } else {
+         const res = await api.createPost(body);
+         if (status === 'draft') {
+           toast.success('Draft saved!');
+         } else if (res.post?.status === 'pending') {
+-          toast.success('Essay submitted for superuser review!');
++          toast.success('Sent to a mentor for review 🎉');
+         } else {
+-          toast.success('Essay published successfully!');
++          toast.success('Pinned to the wall! 🎉');
+         }
+         if (status === 'published') {
+           setTitle('');
+@@ -154,234 +163,285 @@ export function CreateForm() {
+     }
+   };
+ 
++  const meta = categoryMeta(category);
++  const MetaIcon = meta.icon;
++
+   return (
+     <>
+       <Header />
+-      <main className="min-h-screen bg-background pb-28">
+-        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
+-          {/* Header Bar */}
+-          <div className="flex items-center justify-between gap-4 mb-8 pb-6 border-b border-border/80">
+-            <div>
+-              <div className="inline-flex items-center gap-1.5 text-xs font-semibold text-primary bg-primary/10 px-3 py-1 rounded-full uppercase tracking-wider mb-2">
+-                <Sparkles size={13} /> Editorial Studio
++      <main className="relative min-h-screen bg-canvas-lines pb-24">
++        <div className="pointer-events-none absolute left-0 top-20 h-72 w-72 rounded-full bg-primary/10 blur-3xl" />
++        <div className="pointer-events-none absolute right-0 top-96 h-72 w-72 rounded-full bg-accent/10 blur-3xl" />
++
++        <div className="relative mx-auto grid max-w-6xl grid-cols-1 gap-8 px-3 py-8 sm:px-6 xl:grid-cols-[1fr_260px]">
++          {/* Floating creation sheet */}
++          <motion.div
++            initial={{ opacity: 0, y: 40, scale: 0.97 }}
++            animate={{ opacity: 1, y: 0, scale: 1 }}
++            transition={{ type: 'spring', stiffness: 200, damping: 24 }}
++            className="relative rounded-[2rem] border border-border bg-card shadow-[0_30px_80px_-30px_rgba(26,33,24,0.35)]"
++          >
++            {/* Sheet top bar */}
++            <div className="sticky top-[5.25rem] z-30 flex items-center justify-between gap-3 rounded-t-[2rem] border-b border-border bg-card/90 px-4 py-3 backdrop-blur-md sm:px-6">
++              <div className="flex min-w-0 items-center gap-3">
++                <Link
++                  href="/dashboard"
++                  aria-label="Close editor"
++                  className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-secondary text-muted-foreground transition-all hover:rotate-90 hover:bg-rose-500/10 hover:text-rose-500"
++                >
++                  <X size={18} />
++                </Link>
++                <div className="min-w-0">
++                  <p className="truncate font-display text-sm font-extrabold text-foreground">
++                    {editId ? 'Editing your note' : 'New note'}
++                  </p>
++                  <p className="flex items-center gap-1 text-[11px] font-bold text-muted-foreground">
++                    <Clock size={11} /> {wordCount} words · ~{estimatedReadTime} min read
++                  </p>
++                </div>
+               </div>
+-              <h1 className="font-serif text-3xl sm:text-4xl font-extrabold text-foreground tracking-tight">
+-                {editId ? 'Edit Essay' : 'Draft New Essay'}
+-              </h1>
+-            </div>
+ 
+-            {/* Live Progress Ring Counter */}
+-            <div className="flex items-center gap-4 bg-card border border-border px-4 py-2 rounded-2xl shadow-xs">
+-              <div className="relative w-10 h-10 flex items-center justify-center">
+-                <svg className="w-10 h-10 transform -rotate-90">
+-                  <circle
+-                    cx="20"
+-                    cy="20"
+-                    r="16"
+-                    stroke="currentColor"
+-                    strokeWidth="3.5"
+-                    className="text-secondary"
+-                    fill="transparent"
+-                  />
+-                  <circle
+-                    cx="20"
+-                    cy="20"
+-                    r="16"
+-                    stroke="currentColor"
+-                    strokeWidth="3.5"
+-                    className="text-emerald-600 transition-all duration-300"
+-                    fill="transparent"
+-                    strokeDasharray="100"
+-                    strokeDashoffset={100 - wordProgress}
+-                    strokeLinecap="round"
+-                  />
+-                </svg>
+-                <span className="absolute text-[10px] font-bold text-foreground">{wordProgress}%</span>
++              <div className="flex items-center gap-2">
++                <div className="relative hidden h-9 w-9 sm:block" title={`${wordProgress}% of a ${targetWords}-word goal`}>
++                  <svg className="h-9 w-9 -rotate-90" viewBox="0 0 40 40">
++                    <circle cx="20" cy="20" r="16" stroke="currentColor" strokeWidth="4" className="text-secondary" fill="none" />
++                    <circle
++                      cx="20"
++                      cy="20"
++                      r="16"
++                      stroke="currentColor"
++                      strokeWidth="4"
++                      className={cn('transition-all duration-500', wordProgress >= 100 ? 'text-accent' : 'text-primary')}
++                      fill="none"
++                      pathLength="100"
++                      strokeDasharray="100"
++                      strokeDashoffset={100 - wordProgress}
++                      strokeLinecap="round"
++                    />
++                  </svg>
++                  <span className="absolute inset-0 grid place-items-center text-[9px] font-black">{wordProgress}%</span>
++                </div>
++                <motion.button
++                  type="button"
++                  whileHover={{ y: -2 }}
++                  whileTap={{ scale: 0.95 }}
++                  onClick={() => submit('draft')}
++                  disabled={saving}
++                  className="inline-flex items-center gap-1.5 rounded-xl border-2 border-primary/20 px-3 py-2 text-xs font-extrabold text-primary transition-colors hover:border-primary disabled:opacity-50 sm:px-4"
++                >
++                  <Save size={15} />
++                  <span className="hidden sm:inline">Save draft</span>
++                </motion.button>
++                <motion.button
++                  type="button"
++                  whileHover={{ y: -2, scale: 1.04 }}
++                  whileTap={{ scale: 0.95 }}
++                  onClick={() => submit('published')}
++                  disabled={saving}
++                  className="inline-flex items-center gap-1.5 rounded-xl bg-accent px-4 py-2 text-xs font-extrabold text-accent-foreground shadow-[0_10px_22px_-10px_rgba(249,115,22,0.8)] disabled:opacity-50"
++                >
++                  {saving ? <Loader2 size={15} className="animate-spin" /> : <Send size={15} />}
++                  {editId ? 'Update' : 'Pin it'}
++                </motion.button>
+               </div>
++            </div>
++
++            <form className="space-y-6 p-4 sm:p-8" onSubmit={(e) => e.preventDefault()}>
++              {/* Board / category stickers */}
+               <div>
+-                <p className="text-xs font-bold text-foreground">{wordCount} words</p>
+-                <p className="text-[11px] text-muted-foreground flex items-center gap-1">
+-                  <Clock size={11} /> ~{estimatedReadTime}m read
++                <p className="mb-2 text-[11px] font-extrabold uppercase tracking-wider text-muted-foreground">
++                  Which board?
+                 </p>
++                <div className="flex flex-wrap gap-2">
++                  {categories
++                    .filter((c) => c !== 'All')
++                    .map((cat) => {
++                      const CatIcon = categoryMeta(cat).icon;
++                      const active = category === cat;
++                      return (
++                        <motion.button
++                          key={cat}
++                          type="button"
++                          whileHover={{ y: -3, rotate: -2 }}
++                          whileTap={{ scale: 0.92 }}
++                          onClick={() => setCategory(cat)}
++                          className={cn(
++                            'inline-flex items-center gap-1.5 rounded-2xl border-2 px-3 py-2 text-xs font-extrabold transition-colors',
++                            active
++                              ? 'border-primary bg-primary text-primary-foreground shadow-md'
++                              : 'border-border bg-background text-foreground/70 hover:border-primary/40'
++                          )}
++                        >
++                          <CatIcon size={14} strokeWidth={2.5} /> {cat}
++                        </motion.button>
++                      );
++                    })}
++                </div>
+               </div>
+-            </div>
+-          </div>
+ 
+-          <form className="space-y-8" onSubmit={(e) => e.preventDefault()}>
+-            {/* Title Input */}
+-            <div>
+-              <input
+-                type="text"
+-                value={title}
+-                onChange={(e) => setTitle(e.target.value)}
+-                placeholder="Title of your essay..."
+-                className="w-full font-serif text-3xl sm:text-4xl font-bold bg-transparent border-b border-border/80 pb-3 text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:border-primary transition-all"
+-              />
+-            </div>
+-
+-            {/* Excerpt Input */}
+-            <div>
+-              <label className="block text-xs uppercase tracking-wider font-bold text-muted-foreground mb-2">
+-                Summary Excerpt
+-              </label>
+-              <textarea
+-                value={excerpt}
+-                onChange={(e) => setExcerpt(e.target.value)}
+-                placeholder="Write a brief, engaging summary of your essay..."
+-                rows={2}
+-                maxLength={300}
+-                className="w-full px-4 py-3 bg-card border border-border rounded-xl text-foreground text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary resize-none shadow-xs"
+-              />
+-              <p className="text-[11px] text-muted-foreground mt-1 text-right">
+-                {excerpt.length}/300 characters
+-              </p>
+-            </div>
+-
+-            {/* Drag & Drop Cover Image Uploader */}
+-            <div>
+-              <label className="block text-xs uppercase tracking-wider font-bold text-muted-foreground mb-2">
+-                Cover Image
+-              </label>
+-              {featuredImage ? (
+-                <div className="relative w-full h-56 sm:h-72 rounded-2xl overflow-hidden group border border-border shadow-xs">
+-                  <img src={featuredImage} alt="Cover Preview" className="w-full h-full object-cover" />
+-                  <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-3">
++              {/* Cover */}
++              <AnimatePresence mode="wait">
++                {featuredImage ? (
++                  <motion.div
++                    key="cover"
++                    initial={{ opacity: 0, scale: 0.97 }}
++                    animate={{ opacity: 1, scale: 1 }}
++                    exit={{ opacity: 0, scale: 0.97 }}
++                    className="group relative h-52 overflow-hidden rounded-3xl border border-border sm:h-72"
++                  >
++                    <img src={featuredImage} alt="Cover preview" className="h-full w-full object-cover" />
+                     <button
+                       type="button"
+                       onClick={() => setFeaturedImage(null)}
+-                      className="px-4 py-2 bg-rose-600 text-white text-xs font-semibold rounded-xl hover:bg-rose-700 transition-colors flex items-center gap-1.5 shadow-sm"
++                      className="absolute right-3 top-3 inline-flex items-center gap-1.5 rounded-full bg-black/60 px-3 py-1.5 text-xs font-bold text-white opacity-0 backdrop-blur transition-opacity group-hover:opacity-100 focus:opacity-100"
+                     >
+-                      <X size={16} /> Remove Cover
++                      <X size={14} /> Remove
+                     </button>
+-                  </div>
+-                </div>
+-              ) : (
+-                <label
+-                  onDragOver={handleDragOver}
+-                  onDragLeave={handleDragLeave}
+-                  onDrop={handleDrop}
+-                  className={`block border-2 border-dashed rounded-2xl p-8 sm:p-12 text-center cursor-pointer transition-all ${isDragging
+-                      ? 'border-primary bg-primary/5 scale-[1.01]'
+-                      : 'border-border/90 bg-card hover:border-primary/50'
+-                    }`}
+-                >
+-                  <div className="w-12 h-12 rounded-full bg-secondary text-primary flex items-center justify-center mx-auto mb-3">
+-                    <Upload size={22} />
+-                  </div>
+-                  <p className="font-bold text-sm text-foreground mb-1">
+-                    Drag and drop your cover image here
+-                  </p>
+-                  <p className="text-xs text-muted-foreground mb-4">
+-                    Supports PNG, JPG, WebP up to 10MB
+-                  </p>
+-                  <span className="inline-block px-4 py-2 bg-secondary text-foreground text-xs font-semibold rounded-xl hover:bg-muted transition-colors">
+-                    Browse File
+-                  </span>
+-                  <input
+-                    type="file"
+-                    accept="image/*"
+-                    onChange={handleImageUpload}
+-                    className="hidden"
+-                  />
+-                </label>
+-              )}
+-            </div>
+-
+-            {/* Rich Text Editorial Editor */}
+-            <div>
+-              <label className="block text-xs uppercase tracking-wider font-bold text-muted-foreground mb-2">
+-                Essay Body
+-              </label>
+-              <RichTextEditor value={content} onChange={setContent} />
+-            </div>
++                  </motion.div>
++                ) : (
++                  <motion.label
++                    key="drop"
++                    initial={{ opacity: 0 }}
++                    animate={{ opacity: 1 }}
++                    exit={{ opacity: 0 }}
++                    onDragOver={handleDragOver}
++                    onDragLeave={handleDragLeave}
++                    onDrop={handleDrop}
++                    className={cn(
++                      'flex cursor-pointer items-center gap-4 rounded-3xl border-2 border-dashed p-4 transition-all',
++                      isDragging
++                        ? 'scale-[1.01] border-accent bg-note-peach'
++                        : 'border-border bg-background/60 hover:border-accent/50 hover:bg-note-peach/50'
++                    )}
++                  >
++                    <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-note-peach text-accent">
++                      <ImagePlus size={22} />
++                    </span>
++                    <span>
++                      <span className="block text-sm font-extrabold text-foreground">Add a cover photo</span>
++                      <span className="block text-xs text-muted-foreground">Drop an image here or click to browse</span>
++                    </span>
++                    <input type="file" accept="image/*" onChange={handleImageUpload} className="hidden" />
++                  </motion.label>
++                )}
++              </AnimatePresence>
+ 
+-            {/* Category & Tags Grid */}
+-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 bg-card border border-border p-6 rounded-2xl shadow-xs">
+-              <div>
+-                <label className="block text-xs uppercase tracking-wider font-bold text-muted-foreground mb-2">
+-                  Category
+-                </label>
+-                <select
+-                  value={category}
+-                  onChange={(e) => setCategory(e.target.value)}
+-                  className="w-full px-4 py-3 bg-secondary border border-border rounded-xl text-foreground text-sm font-medium focus:outline-none focus:ring-2 focus:ring-primary cursor-pointer"
++              {/* Title */}
++              <div className="flex items-start gap-3">
++                <motion.span
++                  key={category}
++                  initial={{ scale: 0.5, rotate: -30 }}
++                  animate={{ scale: 1, rotate: -8 }}
++                  className="mt-1 grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-note-butter text-2xl"
+                 >
+-                  {categories
+-                    .filter((c) => c !== 'All')
+-                    .map((cat) => (
+-                      <option key={cat} value={cat}>
+-                        {cat}
+-                      </option>
+-                    ))}
+-                </select>
++                  <MetaIcon size={24} strokeWidth={2.5} className={meta.tone} />
++                </motion.span>
++                <textarea
++                  value={title}
++                  onChange={(e) => setTitle(e.target.value)}
++                  placeholder="Give your note a title…"
++                  rows={1}
++                  className="field-sizing-content w-full resize-none bg-transparent font-display text-3xl font-extrabold leading-tight text-foreground placeholder:text-muted-foreground/50 focus:outline-none sm:text-4xl"
++                />
+               </div>
+ 
+-              <div>
+-                <label className="block text-xs uppercase tracking-wider font-bold text-muted-foreground mb-2">
+-                  Tags
++              {/* Excerpt as sticky note */}
++              <div className="relative rotate-[-0.4deg] rounded-2xl bg-note-peach p-4">
++                <span aria-hidden className="tape bg-accent/50" />
++                <label className="mb-1 flex items-center justify-between text-[11px] font-extrabold uppercase tracking-wider text-accent">
++                  <span>The hook</span>
++                  <span className="font-bold normal-case text-muted-foreground">{excerpt.length}/300</span>
+                 </label>
+-                <input
+-                  type="text"
+-                  value={tagInput}
+-                  onChange={(e) => setTagInput(e.target.value)}
+-                  onKeyDown={handleAddTag}
+-                  placeholder="Add tag & press Enter..."
+-                  className="w-full px-4 py-3 bg-secondary border border-border rounded-xl text-foreground text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary mb-3"
++                <textarea
++                  value={excerpt}
++                  onChange={(e) => setExcerpt(e.target.value)}
++                  placeholder="One line that makes friends want to read more…"
++                  rows={2}
++                  maxLength={300}
++                  className="w-full resize-none bg-transparent font-hand text-2xl leading-snug text-foreground placeholder:text-foreground/35 focus:outline-none"
+                 />
+-                <div className="flex flex-wrap gap-1.5">
+-                  {tags.map((tag) => (
+-                    <span
+-                      key={tag}
+-                      className="inline-flex items-center gap-1.5 bg-primary text-primary-foreground px-3 py-1 rounded-full text-xs font-semibold"
+-                    >
+-                      #{tag}
+-                      <button
+-                        type="button"
+-                        onClick={() => setTags(tags.filter((t) => t !== tag))}
+-                        className="hover:opacity-80"
+-                      >
+-                        <X size={14} />
+-                      </button>
+-                    </span>
+-                  ))}
+-                </div>
+               </div>
+-            </div>
+ 
+-            {/* Action Buttons Bar */}
+-            <div className="flex flex-col sm:flex-row items-center gap-4 pt-6 border-t border-border/80">
+-              <Button
+-                type="button"
+-                variant="green"
+-                onClick={() => submit('draft')}
+-                disabled={saving}
+-                className="w-full sm:w-auto"
+-              >
+-                {saving ? 'Saving...' : 'Save as Draft'}
+-              </Button>
++              {/* Body */}
++              <RichTextEditor value={content} onChange={setContent} placeholder="Start writing your story here…" />
+ 
+-              <Button
+-                type="button"
+-                variant="accent"
+-                onClick={() => submit('published')}
+-                disabled={saving}
+-                className="w-full sm:flex-1"
+-              >
+-                {saving ? 'Publishing...' : editId ? 'Update & Publish' : 'Publish Essay'}
+-              </Button>
++              {/* Tags */}
++              <div className="rounded-3xl border border-border bg-background/60 p-4">
++                <label className="mb-2 flex items-center gap-1.5 text-[11px] font-extrabold uppercase tracking-wider text-muted-foreground">
++                  <Hash size={13} /> Tags
++                </label>
++                <div className="flex flex-wrap items-center gap-2">
++                  <AnimatePresence>
++                    {tags.map((tag) => (
++                      <motion.span
++                        key={tag}
++                        layout
++                        initial={{ opacity: 0, scale: 0.6 }}
++                        animate={{ opacity: 1, scale: 1 }}
++                        exit={{ opacity: 0, scale: 0.6 }}
++                        className="inline-flex items-center gap-1 rounded-full bg-primary px-3 py-1 text-xs font-bold text-primary-foreground"
++                      >
++                        #{tag}
++                        <button
++                          type="button"
++                          onClick={() => setTags(tags.filter((t) => t !== tag))}
++                          aria-label={`Remove ${tag}`}
++                          className="rounded-full hover:bg-white/20"
++                        >
++                          <X size={13} />
++                        </button>
++                      </motion.span>
++                    ))}
++                  </AnimatePresence>
++                  <input
++                    type="text"
++                    value={tagInput}
++                    onChange={(e) => setTagInput(e.target.value)}
++                    onKeyDown={handleAddTag}
++                    placeholder={tags.length ? 'Add another…' : 'Type a tag and press Enter'}
++                    className="min-w-[10rem] flex-1 bg-transparent py-1 text-sm font-semibold text-foreground placeholder:text-muted-foreground focus:outline-none"
++                  />
++                </div>
++              </div>
++            </form>
++          </motion.div>
+ 
+-              <Button
+-                variant="ghost"
+-                href="/dashboard"
+-                className="w-full sm:w-auto"
+-              >
+-                Cancel
+-              </Button>
++          {/* Inspiration rail */}
++          <aside className="hidden xl:block">
++            <div className="sticky top-28 space-y-4">
++              <div className="flex items-center gap-2 font-display text-sm font-extrabold text-foreground">
++                <Lightbulb size={16} className="text-accent" /> Writing sparks
++              </div>
++              {SPARKS.map((s, i) => (
++                <motion.button
++                  key={s.text}
++                  type="button"
++                  initial={{ opacity: 0, x: 20 }}
++                  animate={{ opacity: 1, x: 0 }}
++                  transition={{ delay: 0.2 + i * 0.08 }}
++                  whileHover={{ y: -4, rotate: 0, scale: 1.03 }}
++                  style={{ rotate: i % 2 ? 1.5 : -1.5 }}
++                  onClick={() => {
++                    if (!title.trim()) setTitle(s.text);
++                    else toast('Spark copied into your mind ✨', { description: s.text });
++                  }}
++                  className={cn(
++                    'block w-full rounded-2xl border border-black/5 p-4 text-left shadow-[var(--shadow-note)] transition-shadow hover:shadow-[var(--shadow-float)]',
++                    ['bg-note-mint', 'bg-note-butter', 'bg-note-sky', 'bg-note-lilac'][i]
++                  )}
++                >
++                  <s.icon size={20} strokeWidth={2.5} className={s.tone} />
++                  <span className="mt-1 block font-hand text-xl leading-tight text-foreground">{s.text}</span>
++                </motion.button>
++              ))}
++              <div className="rounded-2xl border-2 border-dashed border-primary/30 p-4 text-xs font-semibold leading-relaxed text-muted-foreground">
++                <Sparkles size={14} className="mb-1 text-primary" />
++                Every note is reviewed by an ASYV mentor before it appears on the wall.
++              </div>
+             </div>
+-          </form>
++          </aside>
+         </div>
+       </main>
+-      <Footer />
+     </>
+   );
+ }
+diff --git a/app/dashboard/page.jsx b/app/dashboard/page.jsx
+index 718fffe..3041d03 100644
+--- a/app/dashboard/page.jsx
++++ b/app/dashboard/page.jsx
+@@ -8,6 +8,8 @@ import { Footer } from '@/components/shared/Footer';
+ import { api } from '@/lib/api-client';
+ import { Button } from '@/components/ui/customButton';
+ import { UserAvatar } from '@/components/ui/UserAvatar';
++import { EssayCard } from '@/components/board/EssayCard';
++import { MasonryBoard } from '@/components/board/MasonryBoard';
+ import {
+   Edit2,
+   Trash2,
+@@ -113,7 +115,7 @@ export default function DashboardPage() {
+     return (
+       <>
+         <Header />
+-        <main className="min-h-screen bg-background flex flex-col items-center justify-center py-20">
++        <main className="min-h-screen bg-canvas flex flex-col items-center justify-center py-20">
+           <div className="w-10 h-10 border-3 border-primary border-t-transparent rounded-full animate-spin mb-4" />
+           <p className="text-muted-foreground text-sm font-medium">Loading your dashboard...</p>
+         </main>
+@@ -129,19 +131,19 @@ export default function DashboardPage() {
+   return (
+     <>
+       <Header />
+-      <main className="min-h-screen bg-background pb-20">
++      <main className="min-h-screen bg-canvas pb-20">
+         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
+           {/* Dashboard Title & CTA */}
+           <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-10 pb-8 border-b border-border/80">
+             <div>
+               <div className="inline-flex items-center gap-2 px-3 py-1 bg-primary/10 border border-primary/20 text-primary rounded-full text-xs font-semibold uppercase tracking-wider mb-3">
+-                <Sparkles size={13} /> Author Studio
++                <Sparkles size={13} /> My Board
+               </div>
+-              <h1 className="font-serif text-3xl sm:text-4xl font-extrabold text-foreground tracking-tight">
+-                Writer Dashboard
++              <h1 className="font-display text-3xl sm:text-4xl font-extrabold text-foreground tracking-tight">
++                My Writing Board
+               </h1>
+               <p className="text-muted-foreground text-sm sm:text-base mt-1">
+-                Manage your essays, analyze reader engagement, and craft your next story.
++                Everything you have pinned, saved and drafted — all on one board.
+               </p>
+             </div>
+ 
+@@ -158,12 +160,13 @@ export default function DashboardPage() {
+           </div>
+ 
+           {/* Author Profile Banner */}
+-          <section className="mb-10 bg-card border border-border rounded-2xl p-6 sm:p-8 shadow-xs">
++          <section className="relative mb-10 overflow-hidden rounded-[2rem] border border-border bg-card p-6 sm:p-8 shadow-[var(--shadow-note)]">
++            <div className="pointer-events-none absolute -right-16 -top-16 h-56 w-56 rounded-full bg-accent/10 blur-2xl" />
+             <div className="flex flex-col md:flex-row gap-6 items-start md:items-center">
+               <UserAvatar src={user.avatar} name={user.name} size="xl" />
+               <div className="flex-1">
+                 <div className="flex items-center gap-3 mb-1">
+-                  <h2 className="font-serif text-2xl sm:text-3xl font-bold text-foreground">
++                  <h2 className="font-display text-2xl sm:text-3xl font-bold text-foreground">
+                     {user.name}
+                   </h2>
+                   {user.isSuperuser ? (
+@@ -177,27 +180,27 @@ export default function DashboardPage() {
+                   )}
+                 </div>
+                 <p className="text-muted-foreground text-sm leading-relaxed mb-4 max-w-2xl">
+-                  {user.bio || 'Sharing thoughtful stories and technical insights with the global community.'}
++                  {user.bio || 'ASYV student writer. Add a bio so the village knows your story.'}
+                 </p>
+ 
+                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 pt-4 border-t border-border/60">
+                   <div>
+                     <p className="text-xs text-muted-foreground font-medium mb-0.5">Total Essays</p>
+-                    <p className="font-serif text-xl font-extrabold text-foreground">{user.posts}</p>
++                    <p className="font-display text-xl font-extrabold text-foreground">{user.posts}</p>
+                   </div>
+                   <div>
+                     <p className="text-xs text-muted-foreground font-medium mb-0.5">Total Claps</p>
+-                    <p className="font-serif text-xl font-extrabold text-rose-500">
++                    <p className="font-display text-xl font-extrabold text-rose-500">
+                       {user.likes?.toLocaleString()}
+                     </p>
+                   </div>
+                   <div>
+                     <p className="text-xs text-muted-foreground font-medium mb-0.5">Followers</p>
+-                    <p className="font-serif text-xl font-extrabold text-foreground">{user.followers}</p>
++                    <p className="font-display text-xl font-extrabold text-foreground">{user.followers}</p>
+                   </div>
+                   <div>
+                     <p className="text-xs text-muted-foreground font-medium mb-0.5">Following</p>
+-                    <p className="font-serif text-xl font-extrabold text-foreground">{user.following}</p>
++                    <p className="font-display text-xl font-extrabold text-foreground">{user.following}</p>
+                   </div>
+                 </div>
+               </div>
+@@ -212,7 +215,7 @@ export default function DashboardPage() {
+ 
+           {/* Analytics Cards */}
+           <section className="mb-10 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+-            <div className="bg-card border border-border p-5 rounded-2xl shadow-xs relative overflow-hidden group hover:border-primary/40 transition-all">
++            <div className="bg-note-mint -rotate-1 border border-black/5 p-5 rounded-3xl lift relative overflow-hidden group hover:border-primary/40 transition-all">
+               <div className="flex items-center justify-between mb-3">
+                 <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
+                   Total Reads
+@@ -221,7 +224,7 @@ export default function DashboardPage() {
+                   <TrendingUp size={12} /> Real-Time
+                 </span>
+               </div>
+-              <p className="font-serif text-3xl font-extrabold text-foreground mb-3">
++              <p className="font-display text-3xl font-extrabold text-foreground mb-3">
+                 {(user.totalReads || 0).toLocaleString()}
+               </p>
+               <div className="h-10 w-full">
+@@ -229,7 +232,7 @@ export default function DashboardPage() {
+                   <path
+                     d="M0,25 Q15,20 30,12 T60,18 T90,5 L100,8"
+                     fill="none"
+-                    stroke="#0f382c"
++                    stroke="#16a34a"
+                     strokeWidth="2.5"
+                     strokeLinecap="round"
+                   />
+@@ -240,15 +243,15 @@ export default function DashboardPage() {
+                   />
+                   <defs>
+                     <linearGradient id="gradient-reads" x1="0" y1="0" x2="0" y2="1">
+-                      <stop offset="0%" stopColor="#0f382c" />
+-                      <stop offset="100%" stopColor="#0f382c" stopOpacity="0" />
++                      <stop offset="0%" stopColor="#16a34a" />
++                      <stop offset="100%" stopColor="#16a34a" stopOpacity="0" />
+                     </linearGradient>
+                   </defs>
+                 </svg>
+               </div>
+             </div>
+ 
+-            <div className="bg-card border border-border p-5 rounded-2xl shadow-xs relative overflow-hidden group hover:border-rose-400/40 transition-all">
++            <div className="bg-note-peach rotate-1 border border-black/5 p-5 rounded-3xl lift relative overflow-hidden group hover:border-rose-400/40 transition-all">
+               <div className="flex items-center justify-between mb-3">
+                 <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
+                   Total Claps
+@@ -257,7 +260,7 @@ export default function DashboardPage() {
+                   <Heart size={12} /> Community
+                 </span>
+               </div>
+-              <p className="font-serif text-3xl font-extrabold text-rose-500 mb-3">
++              <p className="font-display text-3xl font-extrabold text-rose-500 mb-3">
+                 {user.likes?.toLocaleString()}
+               </p>
+               <div className="h-10 w-full">
+@@ -273,7 +276,7 @@ export default function DashboardPage() {
+               </div>
+             </div>
+ 
+-            <div className="bg-card border border-border p-5 rounded-2xl shadow-xs relative overflow-hidden group hover:border-amber-400/40 transition-all">
++            <div className="bg-note-butter -rotate-[0.6deg] border border-black/5 p-5 rounded-3xl lift relative overflow-hidden group hover:border-amber-400/40 transition-all">
+               <div className="flex items-center justify-between mb-3">
+                 <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
+                   Reader Retention
+@@ -282,7 +285,7 @@ export default function DashboardPage() {
+                   {user.retentionRate || 0}%
+                 </span>
+               </div>
+-              <p className="font-serif text-3xl font-extrabold text-foreground mb-3">
++              <p className="font-display text-3xl font-extrabold text-foreground mb-3">
+                 {user.formattedDuration || '0m 0s'}
+               </p>
+               <div className="h-10 w-full">
+@@ -290,7 +293,7 @@ export default function DashboardPage() {
+                   <path
+                     d="M0,18 Q25,8 50,16 T100,6"
+                     fill="none"
+-                    stroke="#d4af37"
++                    stroke="#f97316"
+                     strokeWidth="2.5"
+                     strokeLinecap="round"
+                   />
+@@ -298,7 +301,7 @@ export default function DashboardPage() {
+               </div>
+             </div>
+ 
+-            <div className="bg-card border border-border p-5 rounded-2xl shadow-xs relative overflow-hidden group hover:border-primary/40 transition-all">
++            <div className="bg-note-sky rotate-[0.8deg] border border-black/5 p-5 rounded-3xl lift relative overflow-hidden group hover:border-primary/40 transition-all">
+               <div className="flex items-center justify-between mb-3">
+                 <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
+                   Published Stories
+@@ -307,7 +310,7 @@ export default function DashboardPage() {
+                   Active
+                 </span>
+               </div>
+-              <p className="font-serif text-3xl font-extrabold text-foreground mb-3">
++              <p className="font-display text-3xl font-extrabold text-foreground mb-3">
+                 {publishedPosts.length}
+               </p>
+               <div className="h-10 w-full flex items-center gap-1">
+@@ -323,8 +326,8 @@ export default function DashboardPage() {
+           </section>
+ 
+           {/* Animated Tabbed Content Navigation */}
+-          <section className="mb-8 border-b border-border/80 flex items-center justify-between">
+-            <div className="flex gap-2 sm:gap-6 overflow-x-auto pb-px">
++          <section className="mb-8 flex items-center justify-between gap-3 rounded-2xl border border-border bg-card/85 p-2 shadow-sm backdrop-blur-md">
++            <div className="flex gap-1 overflow-x-auto no-scrollbar">
+               {[
+                 { id: 'published', label: `Published (${publishedPosts.length})`, icon: FileText },
+                 { id: 'pending', label: `Pending Approval (${pendingPosts.length})`, icon: Clock },
+@@ -339,16 +342,16 @@ export default function DashboardPage() {
+                   <button
+                     key={tab.id}
+                     onClick={() => setActiveTab(tab.id)}
+-                    className={`relative py-3.5 px-2 sm:px-3 text-xs sm:text-sm font-bold flex items-center gap-2 transition-colors whitespace-nowrap ${
+-                      isActive ? 'text-primary' : 'text-muted-foreground hover:text-foreground'
++                    className={`relative rounded-xl py-2.5 px-3 text-xs sm:text-sm font-extrabold flex items-center gap-2 transition-colors whitespace-nowrap ${
++                      isActive ? 'text-primary-foreground' : 'text-muted-foreground hover:bg-secondary hover:text-foreground'
+                     }`}
+                   >
+-                    <Icon size={16} />
+-                    <span>{tab.label}</span>
++                    <Icon size={16} className="relative z-10" />
++                    <span className="relative z-10">{tab.label}</span>
+                     {isActive && (
+                       <motion.div
+                         layoutId="dashboardTab"
+-                        className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary rounded-full"
++                        className="absolute inset-0 rounded-xl bg-primary"
+                       />
+                     )}
+                   </button>
+@@ -393,11 +396,11 @@ export default function DashboardPage() {
+                 exit={{ opacity: 0 }}
+               >
+                 {publishedPosts.length === 0 ? (
+-                  <div className="text-center py-16 px-6 bg-card border border-border rounded-2xl max-w-lg mx-auto">
++                  <div className="text-center py-16 px-6 bg-card/80 border-2 border-dashed border-border rounded-[2rem] max-w-lg mx-auto">
+                     <div className="w-14 h-14 rounded-full bg-secondary text-primary flex items-center justify-center mx-auto mb-4 text-2xl">
+                       ✍️
+                     </div>
+-                    <h3 className="font-serif text-2xl font-bold text-foreground mb-2">
++                    <h3 className="font-display text-2xl font-bold text-foreground mb-2">
+                       No published essays yet
+                     </h3>
+                     <p className="text-muted-foreground text-sm leading-relaxed mb-6">
+@@ -405,80 +408,36 @@ export default function DashboardPage() {
+                     </p>
+                     <Link
+                       href="/create"
+-                      className="inline-flex items-center gap-2 px-6 py-3 bg-primary text-primary-foreground font-semibold text-xs rounded-xl hover:bg-primary/90 transition-all shadow-xs"
++                      className="inline-flex items-center gap-2 px-6 py-3 bg-primary text-primary-foreground font-semibold text-xs rounded-xl hover:bg-primary/90 transition-all duration-300 shadow-[var(--shadow-note)] hover:-translate-y-1 hover:shadow-[var(--shadow-float)]"
+                     >
+                       <Plus size={16} /> Write Your First Essay
+                     </Link>
+                   </div>
+                 ) : viewMode === 'grid' ? (
+-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
++                  <MasonryBoard columns="sm:columns-2 lg:columns-3">
+                     {publishedPosts.map((post) => (
+-                      <article
++                      <EssayCard
+                         key={post.id}
+-                        className="group bg-card border border-border hover:border-primary/50 rounded-2xl overflow-hidden shadow-xs hover:shadow-xl transition-all duration-300 flex flex-col justify-between"
+-                      >
+-                        <div>
+-                          {post.featured_image && (
+-                            <div className="h-44 overflow-hidden relative bg-secondary">
+-                              <img
+-                                src={post.featured_image}
+-                                alt={post.title}
+-                                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+-                              />
+-                            </div>
+-                          )}
+-                          <div className="p-6">
+-                            <div className="flex items-center justify-between mb-3">
+-                              <span className="text-[11px] font-semibold bg-secondary text-foreground px-2.5 py-0.5 rounded-full">
+-                                {post.category}
+-                              </span>
+-                              <span className="text-[11px] text-muted-foreground flex items-center gap-1 font-medium">
+-                                <Clock size={12} /> {post.read_time}m read
+-                              </span>
+-                            </div>
+-                            <h4 className="font-serif font-bold text-lg text-foreground group-hover:text-primary transition-colors mb-2 line-clamp-2">
+-                              {post.title}
+-                            </h4>
+-                            <p className="text-xs text-muted-foreground line-clamp-2 leading-relaxed mb-4">
+-                              {post.excerpt}
+-                            </p>
+-                          </div>
+-                        </div>
+-
+-                        <div className="px-6 pb-6 pt-0 flex gap-2 border-t border-border/60 mt-2">
+-                          <Link
+-                            href={`/posts/${post.id}`}
+-                            className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 bg-secondary hover:bg-muted text-foreground text-xs font-semibold rounded-xl transition-colors"
+-                          >
+-                            <Eye size={15} /> View
+-                          </Link>
+-                          <Link
+-                            href={`/create?edit=${post.id}`}
+-                            className="p-2 bg-secondary hover:bg-muted text-foreground rounded-xl transition-colors"
+-                            title="Edit Essay"
+-                          >
+-                            <Edit2 size={16} />
+-                          </Link>
+-                          <button
+-                            onClick={() => handleDelete(post.id)}
+-                            className="p-2 bg-secondary hover:bg-rose-500/10 text-muted-foreground hover:text-rose-500 rounded-xl transition-colors"
+-                            title="Delete Essay"
+-                          >
+-                            <Trash2 size={16} />
+-                          </button>
+-                        </div>
+-                      </article>
++                        post={{ ...post, author: { id: user.id, name: user.name, avatar: user.avatar } }}
++                        actions={
++                          <>
++                            <Link href={`/posts/${post.id}`} title="View" className="rounded-full p-1.5 text-muted-foreground hover:bg-white/70 hover:text-primary transition-colors"><Eye size={15} /></Link>
++                            <Link href={`/create?edit=${post.id}`} title="Edit" className="rounded-full p-1.5 text-muted-foreground hover:bg-white/70 hover:text-accent transition-colors"><Edit2 size={15} /></Link>
++                            <button onClick={() => handleDelete(post.id)} title="Delete" className="rounded-full p-1.5 text-muted-foreground hover:bg-rose-500/10 hover:text-rose-500 transition-colors"><Trash2 size={15} /></button>
++                          </>
++                        }
++                      />
+                     ))}
+-                  </div>
++                  </MasonryBoard>
+                 ) : (
+                   <div className="space-y-3">
+                     {publishedPosts.map((post) => (
+                       <div
+                         key={post.id}
+-                        className="bg-card border border-border p-5 rounded-2xl flex items-center justify-between hover:border-primary/40 transition-all shadow-xs"
++                        className="bg-card border border-border p-5 rounded-2xl flex items-center justify-between hover:border-primary/40 transition-all duration-300 shadow-[var(--shadow-note)] hover:-translate-y-1 hover:shadow-[var(--shadow-float)]"
+                       >
+                         <div className="flex-1 pr-4">
+-                          <h4 className="font-serif font-bold text-base text-foreground mb-1">
++                          <h4 className="font-display font-bold text-base text-foreground mb-1">
+                             {post.title}
+                           </h4>
+                           <p className="text-xs text-muted-foreground line-clamp-1">{post.excerpt}</p>
+@@ -518,11 +477,11 @@ export default function DashboardPage() {
+                 exit={{ opacity: 0 }}
+               >
+                 {pendingPosts.length === 0 ? (
+-                  <div className="text-center py-16 px-6 bg-card border border-border rounded-2xl max-w-lg mx-auto">
++                  <div className="text-center py-16 px-6 bg-card/80 border-2 border-dashed border-border rounded-[2rem] max-w-lg mx-auto">
+                     <div className="w-14 h-14 rounded-full bg-amber-500/10 text-amber-500 flex items-center justify-center mx-auto mb-4 text-2xl">
+                       ⏳
+                     </div>
+-                    <h3 className="font-serif text-2xl font-bold text-foreground mb-2">No pending essays</h3>
++                    <h3 className="font-display text-2xl font-bold text-foreground mb-2">No pending essays</h3>
+                     <p className="text-muted-foreground text-sm leading-relaxed mb-6">
+                       You don't have any essays currently awaiting superuser moderation.
+                     </p>
+@@ -532,14 +491,14 @@ export default function DashboardPage() {
+                     {pendingPosts.map((post) => (
+                       <div
+                         key={post.id}
+-                        className="bg-card border border-border p-5 rounded-2xl flex items-center justify-between hover:border-amber-400/40 transition-all shadow-xs"
++                        className="bg-card border border-border p-5 rounded-2xl flex items-center justify-between hover:border-amber-400/40 transition-all duration-300 shadow-[var(--shadow-note)] hover:-translate-y-1 hover:shadow-[var(--shadow-float)]"
+                       >
+                         <div className="flex-1 pr-4">
+                           <div className="flex items-center gap-2 mb-1">
+                             <span className="text-[10px] uppercase font-bold bg-amber-500/10 text-amber-600 px-2.5 py-0.5 rounded-full border border-amber-500/20">
+                               Pending Review
+                             </span>
+-                            <h4 className="font-serif font-bold text-base text-foreground">
++                            <h4 className="font-display font-bold text-base text-foreground">
+                               {post.title}
+                             </h4>
+                           </div>
+@@ -568,11 +527,11 @@ export default function DashboardPage() {
+                 exit={{ opacity: 0 }}
+               >
+                 {revisionPosts.length === 0 ? (
+-                  <div className="text-center py-16 px-6 bg-card border border-border rounded-2xl max-w-lg mx-auto">
++                  <div className="text-center py-16 px-6 bg-card/80 border-2 border-dashed border-border rounded-[2rem] max-w-lg mx-auto">
+                     <div className="w-14 h-14 rounded-full bg-rose-500/10 text-rose-500 flex items-center justify-center mx-auto mb-4 text-2xl">
+                       ✅
+                     </div>
+-                    <h3 className="font-serif text-2xl font-bold text-foreground mb-2">No revisions needed</h3>
++                    <h3 className="font-display text-2xl font-bold text-foreground mb-2">No revisions needed</h3>
+                     <p className="text-muted-foreground text-sm leading-relaxed mb-6">
+                       You don't have any essays that need revision at this time.
+                     </p>
+@@ -589,7 +548,7 @@ export default function DashboardPage() {
+                             <span className="text-[10px] uppercase font-bold bg-rose-500/10 text-rose-600 px-2.5 py-0.5 rounded-full border border-rose-500/20 animate-pulse">
+                               Revision Required
+                             </span>
+-                            <h4 className="font-serif font-bold text-base text-foreground">
++                            <h4 className="font-display font-bold text-base text-foreground">
+                               {post.title}
+                             </h4>
+                           </div>
+@@ -627,11 +586,11 @@ export default function DashboardPage() {
+                 exit={{ opacity: 0 }}
+               >
+                 {draftPosts.length === 0 ? (
+-                  <div className="text-center py-16 px-6 bg-card border border-border rounded-2xl max-w-lg mx-auto">
++                  <div className="text-center py-16 px-6 bg-card/80 border-2 border-dashed border-border rounded-[2rem] max-w-lg mx-auto">
+                     <div className="w-14 h-14 rounded-full bg-secondary text-amber-500 flex items-center justify-center mx-auto mb-4 text-2xl">
+                       📝
+                     </div>
+-                    <h3 className="font-serif text-2xl font-bold text-foreground mb-2">No drafts saved</h3>
++                    <h3 className="font-display text-2xl font-bold text-foreground mb-2">No drafts saved</h3>
+                     <p className="text-muted-foreground text-sm leading-relaxed mb-6">
+                       You don't have any unpublished drafts right now. Start writing a new essay whenever inspiration strikes.
+                     </p>
+@@ -644,14 +603,14 @@ export default function DashboardPage() {
+                     {draftPosts.map((post) => (
+                       <div
+                         key={post.id}
+-                        className="bg-card border border-border p-5 rounded-2xl flex items-center justify-between hover:border-amber-400/40 transition-all shadow-xs"
++                        className="bg-card border border-border p-5 rounded-2xl flex items-center justify-between hover:border-amber-400/40 transition-all duration-300 shadow-[var(--shadow-note)] hover:-translate-y-1 hover:shadow-[var(--shadow-float)]"
+                       >
+                         <div>
+                           <div className="flex items-center gap-2 mb-1">
+                             <span className="text-[10px] uppercase font-bold bg-amber-500/10 text-amber-600 px-2 py-0.5 rounded-full">
+                               Draft
+                             </span>
+-                            <h4 className="font-serif font-bold text-base text-foreground">
++                            <h4 className="font-display font-bold text-base text-foreground">
+                               {post.title || 'Untitled Draft'}
+                             </h4>
+                           </div>
+@@ -683,11 +642,11 @@ export default function DashboardPage() {
+                 exit={{ opacity: 0 }}
+               >
+                 {bookmarkedPosts.length === 0 ? (
+-                  <div className="text-center py-16 px-6 bg-card border border-border rounded-2xl max-w-lg mx-auto">
++                  <div className="text-center py-16 px-6 bg-card/80 border-2 border-dashed border-border rounded-[2rem] max-w-lg mx-auto">
+                     <div className="w-14 h-14 rounded-full bg-amber-500/10 text-amber-500 flex items-center justify-center mx-auto mb-4 text-2xl">
+                       🔖
+                     </div>
+-                    <h3 className="font-serif text-2xl font-bold text-foreground mb-2">
++                    <h3 className="font-display text-2xl font-bold text-foreground mb-2">
+                       Bookmarked Essays
+                     </h3>
+                     <p className="text-muted-foreground text-sm leading-relaxed mb-6">
+@@ -695,64 +654,26 @@ export default function DashboardPage() {
+                     </p>
+                     <Link
+                       href="/posts"
+-                      className="inline-flex items-center gap-2 px-6 py-3 bg-primary text-primary-foreground font-semibold text-xs rounded-xl hover:bg-primary/90 transition-all shadow-xs"
++                      className="inline-flex items-center gap-2 px-6 py-3 bg-primary text-primary-foreground font-semibold text-xs rounded-xl hover:bg-primary/90 transition-all duration-300 shadow-[var(--shadow-note)] hover:-translate-y-1 hover:shadow-[var(--shadow-float)]"
+                     >
+                       <BookOpen size={16} /> Explore Feed
+                     </Link>
+                   </div>
+                 ) : (
+-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
++                  <MasonryBoard columns="sm:columns-2 lg:columns-3">
+                     {bookmarkedPosts.map((post) => (
+-                      <article
++                      <EssayCard
+                         key={post.id}
+-                        className="group bg-card border border-border hover:border-primary/50 rounded-2xl overflow-hidden shadow-xs hover:shadow-xl transition-all duration-300 flex flex-col justify-between"
+-                      >
+-                        <div>
+-                          {post.featured_image && (
+-                            <div className="h-44 overflow-hidden relative bg-secondary">
+-                              <img
+-                                src={post.featured_image}
+-                                alt={post.title}
+-                                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+-                              />
+-                            </div>
+-                          )}
+-                          <div className="p-6">
+-                            <div className="flex items-center justify-between mb-3">
+-                              <span className="text-[11px] font-semibold bg-secondary text-foreground px-2.5 py-0.5 rounded-full">
+-                                {post.category}
+-                              </span>
+-                              <span className="text-[11px] text-muted-foreground flex items-center gap-1 font-medium">
+-                                <Clock size={12} /> {post.read_time}m read
+-                              </span>
+-                            </div>
+-                            <h4 className="font-serif font-bold text-lg text-foreground group-hover:text-primary transition-colors mb-2 line-clamp-2">
+-                              {post.title}
+-                            </h4>
+-                            <p className="text-xs text-muted-foreground line-clamp-2 leading-relaxed mb-4">
+-                              {post.excerpt}
+-                            </p>
+-                          </div>
+-                        </div>
+-
+-                        <div className="px-6 pb-6 pt-0 flex gap-2 border-t border-border/60 mt-2">
+-                          <Link
+-                            href={`/posts/${post.id}`}
+-                            className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 bg-secondary hover:bg-muted text-foreground text-xs font-semibold rounded-xl transition-colors"
+-                          >
+-                            <Eye size={15} /> Read Essay
+-                          </Link>
+-                          <button
+-                            onClick={() => handleRemoveBookmark(post.id)}
+-                            className="p-2 bg-secondary hover:bg-rose-500/10 text-rose-500 rounded-xl transition-colors"
+-                            title="Remove Bookmark"
+-                          >
+-                            <Bookmark size={16} className="fill-amber-500 text-amber-500" />
+-                          </button>
+-                        </div>
+-                      </article>
++                        post={post}
++                        actions={
++                          <>
++                            <Link href={`/posts/${post.id}`} title="View" className="rounded-full p-1.5 text-muted-foreground hover:bg-white/70 hover:text-primary transition-colors"><Eye size={15} /></Link>
++                            <button onClick={() => handleRemoveBookmark(post.id)} title="Remove bookmark" className="rounded-full p-1.5 text-accent bg-accent/10 hover:bg-accent/20 transition-colors"><Bookmark size={15} className="fill-accent" /></button>
++                          </>
++                        }
++                      />
+                     ))}
+-                  </div>
++                  </MasonryBoard>
+                 )}
+               </motion.div>
+             )}
+@@ -765,7 +686,7 @@ export default function DashboardPage() {
+                 exit={{ opacity: 0 }}
+                 className="bg-card border border-border p-8 rounded-2xl shadow-xs"
+               >
+-                <h3 className="font-serif text-xl font-bold text-foreground mb-6">
++                <h3 className="font-display text-xl font-bold text-foreground mb-6">
+                   Reader Engagement Insights
+                 </h3>
+                 <div className="space-y-6">
+diff --git a/app/globals.css b/app/globals.css
+index 67e4cbb..9d54b6d 100644
+--- a/app/globals.css
++++ b/app/globals.css
+@@ -1,86 +1,104 @@
+-@import url('https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400..700;1,400..700&family=Plus+Jakarta+Sans:ital,wght@0,300..800;1,300..800&family=Playfair+Display:ital,wght@0,400..900;1,400..900&display=swap');
+-
+ @import 'tailwindcss';
+ @import 'tw-animate-css';
+ 
+ @custom-variant dark (&:is(.dark *));
+ 
+ :root {
+-  /* Warm Editorial & Calm Atmosphere Theme */
+-  --background: #faf9f6;
+-  --foreground: #1c1d1c;
++  /* ASYV Canvas theme: vibrant green + energetic orange on soft paper */
++  --background: #fbfaf5;
++  --foreground: #1a2118;
+   --card: #ffffff;
+-  --card-foreground: #1c1d1c;
++  --card-foreground: #1a2118;
+   --popover: #ffffff;
+-  --popover-foreground: #1c1d1c;
+-  --primary: #0f382c;
++  --popover-foreground: #1a2118;
++  --primary: #16a34a;
+   --primary-foreground: #ffffff;
+-  --secondary: #f3f2ee;
+-  --secondary-foreground: #1c1d1c;
+-  --muted: #e8e6df;
+-  --muted-foreground: #6b6a65;
+-  --accent: #d4af37;
+-  --accent-foreground: #0f382c;
+-  --destructive: #d9383a;
++  --secondary: #f3f2ea;
++  --secondary-foreground: #1a2118;
++  --muted: #ebe9df;
++  --muted-foreground: #6b6f66;
++  --accent: #f97316;
++  --accent-foreground: #ffffff;
++  --destructive: #e11d48;
+   --destructive-foreground: #ffffff;
+-  --border: #e6e4dc;
+-  --input: #f0eee7;
+-  --ring: #0f382c;
+-  --chart-1: #0f382c;
+-  --chart-2: #1b4d3e;
+-  --chart-3: #2d7a63;
+-  --chart-4: #d4af37;
+-  --chart-5: #e6c86e;
+-  --radius: 0.75rem;
+-  --sidebar: #faf9f6;
+-  --sidebar-foreground: #1c1d1c;
+-  --sidebar-primary: #0f382c;
++  --border: #e7e4d8;
++  --input: #f1efe6;
++  --ring: #16a34a;
++  --chart-1: #16a34a;
++  --chart-2: #4ade80;
++  --chart-3: #f97316;
++  --chart-4: #fdba74;
++  --chart-5: #facc15;
++  --radius: 1rem;
++  --sidebar: #fbfaf5;
++  --sidebar-foreground: #1a2118;
++  --sidebar-primary: #16a34a;
+   --sidebar-primary-foreground: #ffffff;
+-  --sidebar-accent: #f3f2ee;
+-  --sidebar-accent-foreground: #0f382c;
+-  --sidebar-border: #e6e4dc;
+-  --sidebar-ring: #0f382c;
++  --sidebar-accent: #f3f2ea;
++  --sidebar-accent-foreground: #16a34a;
++  --sidebar-border: #e7e4d8;
++  --sidebar-ring: #16a34a;
++
++  /* Board grid & sticky-note pastels */
++  --grid-dot: rgba(26, 33, 24, 0.09);
++  --note-mint: #e3f8e9;
++  --note-peach: #ffeadb;
++  --note-butter: #fff6cc;
++  --note-sky: #e2f1fd;
++  --note-lilac: #efe7fd;
++  --note-white: #ffffff;
+ }
+ 
+ .dark {
+-  --background: #121312;
+-  --foreground: #f4f3ee;
+-  --card: #1b1c1b;
+-  --card-foreground: #f4f3ee;
+-  --popover: #1b1c1b;
+-  --popover-foreground: #f4f3ee;
+-  --primary: #2d7a63;
+-  --primary-foreground: #ffffff;
+-  --secondary: #242624;
+-  --secondary-foreground: #f4f3ee;
+-  --muted: #2d302d;
+-  --muted-foreground: #a3a199;
+-  --accent: #e6c86e;
+-  --accent-foreground: #121312;
+-  --destructive: #e65557;
++  --background: #11140f;
++  --foreground: #f2f4ee;
++  --card: #1a1e17;
++  --card-foreground: #f2f4ee;
++  --popover: #1a1e17;
++  --popover-foreground: #f2f4ee;
++  --primary: #22c55e;
++  --primary-foreground: #06200f;
++  --secondary: #22271f;
++  --secondary-foreground: #f2f4ee;
++  --muted: #2a3026;
++  --muted-foreground: #a2a89b;
++  --accent: #fb923c;
++  --accent-foreground: #1f0d02;
++  --destructive: #f43f5e;
+   --destructive-foreground: #ffffff;
+-  --border: #2d302d;
+-  --input: #242624;
+-  --ring: #2d7a63;
+-  --chart-1: #2d7a63;
+-  --chart-2: #1b4d3e;
+-  --chart-3: #0f382c;
+-  --chart-4: #e6c86e;
+-  --chart-5: #d4af37;
+-  --sidebar: #1b1c1b;
+-  --sidebar-foreground: #f4f3ee;
+-  --sidebar-primary: #2d7a63;
+-  --sidebar-primary-foreground: #ffffff;
+-  --sidebar-accent: #242624;
+-  --sidebar-accent-foreground: #f4f3ee;
+-  --sidebar-border: #2d302d;
+-  --sidebar-ring: #2d7a63;
++  --border: #2a3026;
++  --input: #22271f;
++  --ring: #22c55e;
++  --chart-1: #22c55e;
++  --chart-2: #15803d;
++  --chart-3: #fb923c;
++  --chart-4: #c2410c;
++  --chart-5: #facc15;
++  --sidebar: #1a1e17;
++  --sidebar-foreground: #f2f4ee;
++  --sidebar-primary: #22c55e;
++  --sidebar-primary-foreground: #06200f;
++  --sidebar-accent: #22271f;
++  --sidebar-accent-foreground: #f2f4ee;
++  --sidebar-border: #2a3026;
++  --sidebar-ring: #22c55e;
++
++  --grid-dot: rgba(242, 244, 238, 0.08);
++  --note-mint: #16301f;
++  --note-peach: #3a2416;
++  --note-butter: #35301a;
++  --note-sky: #172a3a;
++  --note-lilac: #29203a;
++  --note-white: #1a1e17;
+ }
+ 
+ @theme inline {
+-  --font-sans: 'Plus Jakarta Sans', 'Geist', system-ui, sans-serif;
+-  --font-serif: 'Lora', 'Playfair Display', Georgia, serif;
+-  --font-mono: 'Geist Mono', monospace;
++  --font-sans: var(--font-body), 'Nunito', system-ui, sans-serif;
++  --font-display: var(--font-heading), 'Bricolage Grotesque', var(--font-body), system-ui, sans-serif;
++  /* `font-serif` is kept as an alias so existing headings pick up the new display face */
++  --font-serif: var(--font-heading), 'Bricolage Grotesque', var(--font-body), system-ui, sans-serif;
++  --font-hand: var(--font-handwritten), 'Caveat', cursive;
++  --font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+   --color-background: var(--background);
+   --color-foreground: var(--foreground);
+   --color-card: var(--card);
+@@ -105,8 +123,14 @@
+   --color-chart-3: var(--chart-3);
+   --color-chart-4: var(--chart-4);
+   --color-chart-5: var(--chart-5);
+-  --radius-sm: calc(var(--radius) - 4px);
+-  --radius-md: calc(var(--radius) - 2px);
++  --color-note-mint: var(--note-mint);
++  --color-note-peach: var(--note-peach);
++  --color-note-butter: var(--note-butter);
++  --color-note-sky: var(--note-sky);
++  --color-note-lilac: var(--note-lilac);
++  --color-note-white: var(--note-white);
++  --radius-sm: calc(var(--radius) - 6px);
++  --radius-md: calc(var(--radius) - 4px);
+   --radius-lg: var(--radius);
+   --radius-xl: calc(var(--radius) + 4px);
+   --color-sidebar: var(--sidebar);
+@@ -117,6 +141,9 @@
+   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+   --color-sidebar-border: var(--sidebar-border);
+   --color-sidebar-ring: var(--sidebar-ring);
++
++  --shadow-float: 0 18px 40px -18px rgba(26, 33, 24, 0.28), 0 6px 14px -8px rgba(26, 33, 24, 0.12);
++  --shadow-note: 0 1px 0 rgba(26, 33, 24, 0.04), 0 2px 6px -2px rgba(26, 33, 24, 0.08);
+ }
+ 
+ @layer base {
+@@ -124,14 +151,57 @@
+     @apply border-border outline-ring/50;
+   }
+   body {
+-    @apply bg-background text-foreground font-sans antialiased selection:bg-primary/20 selection:text-primary;
++    @apply bg-background text-foreground font-sans antialiased selection:bg-accent/25 selection:text-foreground;
+   }
+   h1, h2, h3, .font-serif-heading {
+-    font-family: var(--font-serif);
++    font-family: var(--font-display);
++    letter-spacing: -0.02em;
++  }
++}
++
++/* Padlet-style canvas backgrounds */
++@utility bg-canvas {
++  background-color: var(--background);
++  background-image: radial-gradient(var(--grid-dot) 1.2px, transparent 1.2px);
++  background-size: 22px 22px;
++}
++
++@utility bg-canvas-lines {
++  background-color: var(--background);
++  background-image:
++    linear-gradient(var(--grid-dot) 1px, transparent 1px),
++    linear-gradient(90deg, var(--grid-dot) 1px, transparent 1px);
++  background-size: 28px 28px;
++}
++
++/* Lift-off-the-desk hover */
++@utility lift {
++  transition: transform 0.35s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.35s cubic-bezier(0.22, 1, 0.36, 1);
++  box-shadow: var(--shadow-note);
++  &:hover {
++    transform: translateY(-4px) scale(1.02);
++    box-shadow: var(--shadow-float);
+   }
+ }
+ 
+-/* Custom Editorial Micro-Animations */
++/* Washi-tape strip used on sticky notes */
++@utility tape {
++  position: absolute;
++  top: -10px;
++  left: 50%;
++  width: 72px;
++  height: 20px;
++  transform: translateX(-50%) rotate(-3deg);
++  border-radius: 3px;
++  opacity: 0.85;
++  background-image: repeating-linear-gradient(
++    45deg,
++    rgba(255, 255, 255, 0.35) 0 6px,
++    transparent 6px 12px
++  );
++}
++
++/* Micro-animations */
+ @keyframes floatUpFade {
+   0% {
+     opacity: 1;
+@@ -147,6 +217,15 @@
+   animation: floatUpFade 0.65s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+ }
+ 
++@keyframes bob {
++  0%, 100% { transform: translateY(0) rotate(var(--bob-rotate, 0deg)); }
++  50% { transform: translateY(-8px) rotate(var(--bob-rotate, 0deg)); }
++}
++
++.animate-bob {
++  animation: bob 5s ease-in-out infinite;
++}
++
+ @keyframes skeletonShimmer {
+   0% {
+     background-position: -200% 0;
+@@ -162,7 +241,24 @@
+   animation: skeletonShimmer 1.5s infinite;
+ }
+ 
+-/* Custom Scrollbar for Fixed Posts Container */
++/* Editor content */
++.editor-surface h1 { font-size: 2rem; font-weight: 800; margin: 1.2rem 0 0.6rem; }
++.editor-surface h2 { font-size: 1.6rem; font-weight: 800; margin: 1rem 0 0.5rem; }
++.editor-surface h3 { font-size: 1.3rem; font-weight: 700; margin: 0.9rem 0 0.4rem; }
++.editor-surface p { margin: 0.5rem 0; }
++.editor-surface ul { list-style: disc; padding-left: 1.5rem; }
++.editor-surface ol { list-style: decimal; padding-left: 1.5rem; }
++.editor-surface blockquote {
++  border-left: 4px solid var(--accent);
++  background: var(--note-peach);
++  padding: 0.75rem 1rem;
++  border-radius: 0 1rem 1rem 0;
++  margin: 1rem 0;
++  font-style: italic;
++}
++.editor-surface a { color: var(--primary); text-decoration: underline; text-underline-offset: 3px; }
++
++/* Custom Scrollbar */
+ .custom-scrollbar::-webkit-scrollbar {
+   width: 6px;
+ }
+@@ -182,3 +278,13 @@
+   scrollbar-color: var(--border) transparent;
+ }
+ 
++@media (prefers-reduced-motion: reduce) {
++  .animate-bob, .lift { animation: none !important; transition: none !important; }
++}
++
++@utility no-scrollbar {
++  scrollbar-width: none;
++  &::-webkit-scrollbar {
++    display: none;
++  }
++}
+diff --git a/app/layout.jsx b/app/layout.jsx
+index adcc1d7..ab27058 100644
+--- a/app/layout.jsx
++++ b/app/layout.jsx
+@@ -1,4 +1,4 @@
+-import { Geist, Geist_Mono } from 'next/font/google'
++import { Nunito, Bricolage_Grotesque, Caveat } from 'next/font/google'
+ import { Analytics } from '@vercel/analytics/next'
+ import { Toaster } from '@/components/ui/sonner'
+ import './globals.css'
+@@ -12,12 +12,13 @@ if (typeof window === 'undefined') {
+   });
+ }
+ 
+-const _geist = Geist({ subsets: ["latin"] });
+-const _geistMono = Geist_Mono({ subsets: ["latin"] });
++const bodyFont = Nunito({ subsets: ['latin'], variable: '--font-body', display: 'swap' });
++const headingFont = Bricolage_Grotesque({ subsets: ['latin'], variable: '--font-heading', display: 'swap' });
++const handFont = Caveat({ subsets: ['latin'], variable: '--font-handwritten', display: 'swap' });
+ 
+ export const metadata = {
+   title: 'ASYV Writing',
+-  description: 'ASYV Writing is a platform for sharing thoughtful essays and engaging with writers from around the world.',
++  description: 'ASYV Writing is the creative wall of Agahozo-Shalom Youth Village: where students pin their essays, stories and ideas.',
+   generator:'Dominique Savio',
+   icons: {
+     icon: [
+@@ -42,7 +43,7 @@ export const metadata = {
+ 
+ export default function RootLayout({ children }) {
+   return (
+-    <html lang="en">
++    <html lang="en" className={`${bodyFont.variable} ${headingFont.variable} ${handFont.variable}`}>
+       <body className="font-sans antialiased">
+         {children}
+         <Toaster />
+diff --git a/app/page.jsx b/app/page.jsx
+index 10a7473..1aa5424 100644
+--- a/app/page.jsx
++++ b/app/page.jsx
+@@ -1,256 +1,334 @@
+ 'use client';
+ 
++import { useEffect, useMemo, useState } from 'react';
+ import Link from 'next/link';
+-import { Heart, BookMarked, TrendingUp, Share2, MessageSquare, Sparkles } from 'lucide-react';
+-import Image from 'next/image';
+-import Button from '@/components/ui/customButton';
+-import { Header } from '@/components/shared/Header';
+ import { motion } from 'framer-motion';
++import { ArrowRight, Flame, PenLine, Sparkles, Users, Heart, StickyNote, Compass, Pin } from 'lucide-react';
++import { Header } from '@/components/shared/Header';
++import { Footer } from '@/components/shared/Footer';
++import { EssayCard, EssayCardSkeleton } from '@/components/board/EssayCard';
++import { MasonryBoard } from '@/components/board/MasonryBoard';
++import { api } from '@/lib/api-client';
++import { categories } from '@/lib/posts';
++import { categoryMeta, NOTE_STYLES, boardContainer, boardItem } from '@/lib/board';
++import { toast } from 'sonner';
++
++const PROMPTS = [
++  'Describe a moment at ASYV that changed how you see yourself.',
++  'Write a letter to the student you were on your first day in the village.',
++  'What does "Tikkun Olam" — repairing the world — mean in your daily life?',
++  'Pick one sound from the village and turn it into a short story.',
++];
+ 
+ export default function Home() {
++  const [user, setUser] = useState(null);
++  const [trending, setTrending] = useState([]);
++  const [recent, setRecent] = useState([]);
++  const [loading, setLoading] = useState(true);
++  const [promptIndex, setPromptIndex] = useState(0);
++
++  useEffect(() => {
++    setPromptIndex(new Date().getDate() % PROMPTS.length);
++    api.getMe().then((d) => setUser(d.user)).catch(() => {});
++    Promise.all([api.getPosts({ sort: 'trending' }), api.getPosts({ sort: 'recent' })])
++      .then(([t, r]) => {
++        setTrending(t.posts || []);
++        setRecent(r.posts || []);
++      })
++      .catch(() => {})
++      .finally(() => setLoading(false));
++  }, []);
++
++  const stats = useMemo(() => {
++    const writers = new Set(recent.map((p) => p.author?.id).filter(Boolean)).size;
++    const hearts = recent.reduce((sum, p) => sum + (p.likes || 0), 0);
++    return { notes: recent.length, writers, hearts };
++  }, [recent]);
++
++  const categoryCounts = useMemo(() => {
++    const counts = {};
++    recent.forEach((p) => {
++      counts[p.category] = (counts[p.category] || 0) + 1;
++    });
++    return counts;
++  }, [recent]);
++
++  const handleLike = async (postId, e) => {
++    e?.preventDefault();
++    e?.stopPropagation();
++    const flip = (list) =>
++      list.map((p) =>
++        p.id === postId ? { ...p, liked: !p.liked, likes: Math.max(0, (p.likes || 0) + (p.liked ? -1 : 1)) } : p
++      );
++    setTrending(flip);
++    setRecent(flip);
++    try {
++      await api.likePost(postId);
++    } catch {
++      setTrending(flip);
++      setRecent(flip);
++      toast.error('Sign in to send some love 💚');
++    }
++  };
++
++  const firstName = user?.name?.split(' ')[0];
++  const heroNotes = trending.slice(0, 3);
++
+   return (
+-    <div className="min-h-screen bg-background">
++    <div className="min-h-screen bg-canvas">
+       <Header />
+ 
+-      {/* Hero Section */}
+-      <section className="bg-secondary/50 py-16 sm:py-24">
+-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-16 items-center">
+-            {/* Left Content */}
+-            <div>
+-              <div className="relative group">
+-                <motion.div
+-                  initial={{ opacity: 0.8, y: 20 }}
+-                  animate={{ opacity: 1, y: 0 }}
+-                  transition={{ duration: 0.6, delay: 0.2 }}
+-                  className="text-5xl sm:text-6xl font-bold text-foreground leading-tight mb-6 relative overflow-hidden"
+-                >
+-                  <span className="relative z-10">Publishing is king</span> <span className="">in the digital age</span>
+-                  <motion.div
+-                    initial={{ x: "-100%" }}
+-                    animate={{ x: "100%" }}
+-                    transition={{
+-                      duration: 2,
+-                      repeat: Infinity,
+-                      repeatDelay: 0.05,
+-                      ease: "easeInOut"
+-                    }}
+-                    className="absolute inset-0 z-20 pointer-events-none bg-gradient-to-r from-transparent via-white/80 to-transparent mix-blend-screen"
+-                  />
+-                </motion.div>
+-              </div>
++      {/* Immersive hero dashboard */}
++      <section className="relative overflow-hidden">
++        <div className="pointer-events-none absolute -top-24 -left-24 h-72 w-72 rounded-full bg-primary/15 blur-3xl" />
++        <div className="pointer-events-none absolute top-40 -right-24 h-80 w-80 rounded-full bg-accent/15 blur-3xl" />
+ 
+-              <p className="text-lg text-foreground/70 leading-relaxed mb-8 max-w-lg">
+-                EssayHub empowers writers to share their voice with the world. Craft stunning essays with our advanced editor, reach engaged readers, and build your writing legacy.
+-              </p>
++        <div className="relative mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 pt-10 pb-16 lg:pt-14">
++          <div className="grid grid-cols-1 items-start gap-12 lg:grid-cols-[1.05fr_1fr]">
++            <motion.div variants={boardContainer} initial="hidden" animate="show" className="lg:pt-12">
++              <motion.span
++                variants={boardItem}
++                className="inline-flex items-center gap-2 rounded-full border border-primary/20 bg-card px-3.5 py-1.5 text-xs font-extrabold text-primary shadow-sm"
++              >
++                <span className="relative flex h-2 w-2">
++                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary opacity-60" />
++                  <span className="relative inline-flex h-2 w-2 rounded-full bg-primary" />
++                </span>
++                {firstName ? `Muraho, ${firstName}! The wall is live` : 'Murakaza neza · The ASYV wall is live'}
++              </motion.span>
+ 
+-              <div className="flex flex-col sm:flex-row gap-4">
+-                <Button variant="green" size="lg" href="/create">
+-                  Start Writing
+-                </Button>
+-                <Button variant="accent" size="lg" href="/posts">
+-                  Explore Now
+-                </Button>
+-              </div>
+-            </div>
++              <motion.h1
++                variants={boardItem}
++                className="mt-5 font-display text-4xl font-extrabold leading-[1.05] text-foreground sm:text-5xl lg:text-6xl"
++              >
++                Pin your{' '}
++                <span className="relative inline-block text-primary">
++                  story
++                  <svg aria-hidden viewBox="0 0 200 20" className="absolute -bottom-2 left-0 h-3 w-full text-accent">
++                    <path d="M2 14 Q 50 2, 100 10 T 198 8" fill="none" stroke="currentColor" strokeWidth="5" strokeLinecap="round" />
++                  </svg>
++                </span>{' '}
++                to the village wall.
++              </motion.h1>
+ 
+-            {/* Right - Visual Preview */}
+-            <div className="flex items-center justify-center">
+-              <div className="relative w-full max-w-xl">
+-                <div className="bg-white rounded-lg shadow-lg overflow-hidden">
+-                  <div className="relative h-88 w-[700px]">
+-                    <Image 
+-                      src="/club.webp" 
+-                      alt="Essay Preview" 
+-                      fill  
+-                      sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+-                      className="object-cover object-top"
+-                      priority
+-                    />
+-                  </div>
+-                  <div className="p-6">
+-                    <p className="text-xs font-semibold text-accent/80 mb-2 uppercase tracking-wide">Featured Essay</p>
+-                    <h3 className="text-xl font-bold text-foreground mb-2 line-clamp-2">
+-                      The Future of Remote Work
+-                    </h3>
+-                    <p className="text-sm text-foreground/70 mb-4 line-clamp-2">
+-                      Exploring how distributed teams are reshaping the landscape of modern work and collaboration.
+-                    </p>
+-                    <div className="flex items-center justify-between pt-4 border-t border-border">
+-                      <span className="text-xs text-foreground/60">8 min read</span>
+-                      <div className="flex items-center gap-3">
+-                        <Heart className="w-4 h-4 text-foreground/40 hover:text-accent cursor-pointer transition-colors" />
+-                        <Share2 className="w-4 h-4 text-foreground/40 hover:text-primary cursor-pointer transition-colors" />
+-                      </div>
+-                    </div>
+-                  </div>
+-                </div>
++              <motion.p variants={boardItem} className="mt-5 max-w-xl text-base leading-relaxed text-foreground/70 sm:text-lg">
++                ASYV Writing is where Agahozo-Shalom students drop essays, poems and big ideas as notes on a shared
++                creative board. Read your friends, react, and add your own voice.
++              </motion.p>
+ 
+-                <div className="absolute -bottom-6 -right-6 bg-white rounded-lg p-4 shadow-lg hidden sm:block">
+-                  <div className="flex items-center gap-3">
+-                    <TrendingUp className="w-5 h-5 text-accent" />
+-                    <div className="text-sm">
+-                      <p className="font-semibold text-foreground">50K Essays</p>
+-                      <p className="text-foreground/60 text-xs">Published this month</p>
+-                    </div>
++              <motion.div variants={boardItem} className="mt-8 flex flex-wrap items-center gap-3">
++                <Link
++                  href="/create"
++                  className="group inline-flex items-center gap-2 rounded-2xl bg-accent px-6 py-3.5 text-sm font-extrabold text-accent-foreground shadow-[0_10px_24px_-10px_rgba(249,115,22,0.7)] transition-all hover:-translate-y-0.5 hover:scale-105 hover:shadow-[0_16px_30px_-12px_rgba(249,115,22,0.8)]"
++                >
++                  <PenLine size={18} className="transition-transform group-hover:-rotate-12" />
++                  Start a note
++                </Link>
++                <Link
++                  href="/posts"
++                  className="group inline-flex items-center gap-2 rounded-2xl border-2 border-primary/20 bg-card px-6 py-3 text-sm font-extrabold text-primary transition-all hover:-translate-y-0.5 hover:scale-105 hover:border-primary hover:shadow-[var(--shadow-float)]"
++                >
++                  <Compass size={18} />
++                  Explore the wall
++                  <ArrowRight size={16} className="transition-transform group-hover:translate-x-1" />
++                </Link>
++              </motion.div>
++
++              <motion.div variants={boardItem} className="mt-10 grid max-w-lg grid-cols-3 gap-3">
++                {[
++                  { icon: StickyNote, value: stats.notes, label: 'notes pinned', tone: 'bg-note-mint text-primary' },
++                  { icon: Users, value: stats.writers, label: 'student writers', tone: 'bg-note-peach text-accent' },
++                  { icon: Heart, value: stats.hearts, label: 'hearts given', tone: 'bg-note-butter text-rose-500' },
++                ].map(({ icon: Icon, value, label, tone }, i) => (
++                  <div
++                    key={label}
++                    style={{ rotate: `${[-2, 1.5, -1][i]}deg` }}
++                    className={`lift rounded-2xl border border-black/5 p-3 ${tone.split(' ')[0]}`}
++                  >
++                    <Icon size={18} className={tone.split(' ')[1]} />
++                    <p className="mt-1.5 font-display text-2xl font-extrabold text-foreground">{loading ? '–' : value}</p>
++                    <p className="text-[11px] font-bold text-muted-foreground">{label}</p>
+                   </div>
+-                </div>
++                ))}
++              </motion.div>
++            </motion.div>
++
++            {/* Trending cluster */}
++            <div className="relative">
++              <div className="mb-3 flex items-center gap-2">
++                <span className="inline-flex items-center gap-1.5 rounded-full bg-foreground px-3 py-1 text-xs font-extrabold text-background">
++                  <Flame size={13} className="text-accent" /> Trending at ASYV
++                </span>
++                <span className="font-hand text-xl text-muted-foreground">this week</span>
+               </div>
++              {loading ? (
++                <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
++                  <EssayCardSkeleton tall />
++                  <EssayCardSkeleton />
++                </div>
++              ) : heroNotes.length === 0 ? (
++                <EmptyWall />
++              ) : (
++                <motion.div
++                  variants={boardContainer}
++                  initial="hidden"
++                  animate="show"
++                  className="grid grid-cols-1 gap-6 sm:grid-cols-2"
++                >
++                  <div className="space-y-6 sm:pt-6">
++                    {heroNotes[0] && <EssayCard post={heroNotes[0]} onLike={handleLike} />}
++                  </div>
++                  <div className="space-y-6">
++                    {heroNotes.slice(1).map((p) => (
++                      <EssayCard key={p.id} post={{ ...p, featured_image: '' }} onLike={handleLike} />
++                    ))}
++                    <PromptNote prompt={PROMPTS[promptIndex]} />
++                  </div>
++                </motion.div>
++              )}
+             </div>
+           </div>
+         </div>
+       </section>
+ 
+-      {/* Features Section */}
+-      <section id="features" className="py-20 sm:py-32 border-t border-border">
+-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+-          <div className="mb-16 sm:mb-20">
+-            <p className="text-sm font-semibold text-accent/80 uppercase tracking-widest mb-4">CORE FEATURES</p>
+-            <h2 className="text-4xl sm:text-5xl font-bold text-foreground mb-4">
+-              Everything you need to write
+-            </h2>
+-            <p className="text-lg text-foreground/70 max-w-2xl">
+-              A complete suite of tools designed for writers who want to create, publish, and succeed.
+-            </p>
+-          </div>
+-
+-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 lg:gap-10">
+-            <div className="flex gap-4 px-2 py-4 bg-white rounded-lg border border-border hover:shadow-lg transition-shadow">
+-              <Image src="/giphy2.gif" alt="Editor Icon" width={150} height={100} className="object-cover border border-border rounded-lg" />
+-              <div className="text-foreground/70 text-sm leading-relaxed">
+-                <h3 className="text-xl font-bold text-foreground">Rich Text Engine</h3>
+-                <p>Break free from boring text! Unleash total creative control over your words with lightning-fast bolding, sharp italics, hyper-vibrant colors, and explosive formatting.</p>  
+-              </div>
+-            </div>
+-
+-            <div className="flex gap-4 px-2 py-4 bg-white rounded-lg border border-border hover:shadow-lg transition-shadow">
+-              <Image src="/giphy1.gif" alt="Editor Icon" width={150} height={100} className="object-cover border border-border rounded-lg" />
+-              <div className="text-foreground/70 text-sm leading-relaxed">
+-                <h3 className="text-xl font-bold text-foreground">Community Engagement</h3>
+-                <p>Connect with readers, build a loyal audience, and foster meaningful discussions around your work.</p>  
+-              </div>
+-            </div>
++      {/* Creative boards */}
++      <section className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 pb-14">
++        <SectionTitle kicker="Boards" title="Pick a board, find your people" href="/posts" cta="All boards" />
++        <motion.div
++          variants={boardContainer}
++          initial="hidden"
++          whileInView="show"
++          viewport={{ once: true, margin: '-60px' }}
++          className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5"
++        >
++          {categories
++            .filter((c) => c !== 'All')
++            .map((cat, i) => {
++              const meta = categoryMeta(cat);
++              const Icon = meta.icon;
++              const style = NOTE_STYLES[i % NOTE_STYLES.length];
++              return (
++                <motion.div key={cat} variants={boardItem} whileHover={{ y: -6, scale: 1.04, rotate: i % 2 ? 1.5 : -1.5 }}>
++                  <Link
++                    href={`/posts?category=${encodeURIComponent(cat)}`}
++                    className={`relative flex h-36 flex-col justify-between rounded-3xl border border-black/5 p-4 shadow-[var(--shadow-note)] transition-shadow hover:shadow-[var(--shadow-float)] ${style.bg}`}
++                  >
++                    <span className="grid h-11 w-11 place-items-center rounded-2xl bg-white/80 shadow-sm dark:bg-black/20">
++                      <Icon size={22} strokeWidth={2.5} className={meta.tone} />
++                    </span>
++                    <div>
++                      <p className="font-display text-base font-extrabold leading-tight text-foreground">{meta.label}</p>
++                      <p className="text-xs font-bold text-muted-foreground">
++                        {categoryCounts[cat] || 0} {categoryCounts[cat] === 1 ? 'note' : 'notes'}
++                      </p>
++                    </div>
++                  </Link>
++                </motion.div>
++              );
++            })}
++        </motion.div>
++      </section>
+ 
+-            <div className="flex gap-4 px-2 py-4 bg-white rounded-lg border border-border hover:shadow-lg transition-shadow">
+-              <Image src="/giphy3.gif" alt="Editor Icon" width={150} height={100} className="object-cover border border-border rounded-lg" />
+-              <div className="text-foreground/70 text-sm leading-relaxed">
+-                <h3 className="text-xl font-bold text-foreground">Analytics Dashboard</h3>
+-                <p> Track reads, engagement, and audience growth with real-time insights into your essay performance.</p>  
+-              </div>
+-            </div>
++      {/* Fresh notes masonry */}
++      <section className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 pb-20">
++        <SectionTitle kicker="Fresh ink" title="Just pinned by students" href="/posts" cta="Open the full wall" />
++        {loading ? (
++          <div className="columns-1 gap-5 sm:columns-2 lg:columns-3 xl:columns-4">
++            {[1, 2, 3, 4].map((n) => (
++              <EssayCardSkeleton key={n} tall={n % 2 === 0} />
++            ))}
+           </div>
+-        </div>
++        ) : recent.length === 0 ? (
++          <EmptyWall />
++        ) : (
++          <MasonryBoard>
++            {recent.slice(0, 8).map((post) => (
++              <EssayCard key={post.id} post={post} onLike={handleLike} />
++            ))}
++          </MasonryBoard>
++        )}
+       </section>
+ 
+-      {/* About Section */}
+-      <section id="about" className="py-20 sm:py-32 bg-secondary/30 border-t border-border">
+-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-16 items-center">
+-            <Image
+-              src="/giphy.gif"
+-              alt="Reading Habit"
+-              width={600}
+-              height={400}
+-              className="rounded-lg shadow-lg object-cover object-top"
+-            />
+-
+-            <div className="order-1 lg:order-2">
+-              <p className="text-sm font-semibold text-accent/80 uppercase tracking-widest mb-4">ABOUT</p>
+-              <h2 className="text-4xl sm:text-5xl font-bold text-foreground mb-6">
+-                Built for writers, by writers
+-              </h2>
+-              <p className="text-lg text-foreground/70 leading-relaxed mb-6">
+-                EssayHub was created by writers who experienced the limitations of existing platforms. We built the editor we always wanted - powerful yet intuitive, with all the formatting tools you need without unnecessary complexity.
+-              </p>
+-              <p className="text-lg text-foreground/70 leading-relaxed mb-8">
+-                Whether you're sharing personal stories, professional insights, or creative fiction, EssayHub provides the tools to craft your best work and reach an audience that genuinely cares.
++      {/* CTA */}
++      <section className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 pb-20">
++        <div className="relative overflow-hidden rounded-[2rem] bg-primary px-6 py-12 text-primary-foreground sm:px-12">
++          <div className="pointer-events-none absolute -right-10 -top-10 h-48 w-48 rounded-full bg-accent/40 blur-2xl" />
++          <div className="pointer-events-none absolute bottom-0 left-1/3 h-32 w-32 rounded-full bg-white/10 blur-2xl" />
++          <div className="relative flex flex-col items-start justify-between gap-6 md:flex-row md:items-center">
++            <div>
++              <p className="font-hand text-2xl text-white/80">Your voice matters here</p>
++              <h2 className="mt-1 font-display text-3xl font-extrabold sm:text-4xl">Got something to say? Pin it.</h2>
++              <p className="mt-2 max-w-lg text-sm text-white/80">
++                Every note is reviewed by an ASYV mentor before it goes live on the wall.
+               </p>
+-
+-              <div className="flex items-center gap-6 pt-8 border-t border-border">
+-                <div>
+-                  <p className="text-3xl font-bold text-primary">2.5K+</p>
+-                  <p className="text-sm text-foreground/70">Active Writers</p>
+-                </div>
+-                <div>
+-                  <p className="text-3xl font-bold text-accent">50K+</p>
+-                  <p className="text-sm text-foreground/70">Essays Published</p>
+-                </div>
+-                <div>
+-                  <p className="text-3xl font-bold text-primary">500K+</p>
+-                  <p className="text-sm text-foreground/70">Monthly Readers</p>
+-                </div>
+-              </div>
+             </div>
++            <Link
++              href={user ? '/create' : '/auth/signup'}
++              className="inline-flex items-center gap-2 rounded-2xl bg-white px-6 py-3.5 text-sm font-extrabold text-primary shadow-lg transition-all hover:-translate-y-0.5 hover:scale-105"
++            >
++              <Sparkles size={18} className="text-accent" />
++              {user ? 'Write a new note' : 'Join the wall'}
++            </Link>
+           </div>
+         </div>
+       </section>
+ 
+-      {/* Final CTA Section */}
+-      <section className="bg-green-800 text-primary-foreground py-20 sm:py-28 border-t border-border">
+-        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+-          <h2 className="text-4xl sm:text-5xl font-bold mb-6">
+-            Ready to publish your first essay?
+-          </h2>
+-          <p className="text-lg text-primary-foreground/90 mb-8 leading-relaxed">
+-            Join thousands of writers creating meaningful content and building their audience on EssayHub.
+-          </p>
+-          <Button variant="accent" size="lg" href="/auth/signup">
+-            Get Started Free
+-          </Button>
+-        </div>
+-      </section>
++      <Footer />
++    </div>
++  );
++}
+ 
+-      {/* Professional Footer */}
+-      <footer className="bg-background border-t border-border py-16 sm:py-20">
+-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-8 mb-12">
+-            <div>
+-              <h4 className="font-bold text-foreground mb-4 text-sm">PRODUCT</h4>
+-              <ul className="space-y-3">
+-                <li><Link href="#" className="text-foreground/70 hover:text-foreground text-sm transition-colors">Features</Link></li>
+-                <li><Link href="#" className="text-foreground/70 hover:text-foreground text-sm transition-colors">Pricing</Link></li>
+-                <li><Link href="/posts" className="text-foreground/70 hover:text-foreground text-sm transition-colors">Explore Essays</Link></li>
+-              </ul>
+-            </div>
+-            <div>
+-              <h4 className="font-bold text-foreground mb-4 text-sm">COMMUNITY</h4>
+-              <ul className="space-y-3">
+-                <li><Link href="#" className="text-foreground/70 hover:text-foreground text-sm transition-colors">Writers</Link></li>
+-                <li><Link href="#" className="text-foreground/70 hover:text-foreground text-sm transition-colors">Categories</Link></li>
+-                <li><Link href="#" className="text-foreground/70 hover:text-foreground text-sm transition-colors">Trending</Link></li>
+-              </ul>
+-            </div>
+-            <div>
+-              <h4 className="font-bold text-foreground mb-4 text-sm">RESOURCES</h4>
+-              <ul className="space-y-3">
+-                <li><Link href="#" className="text-foreground/70 hover:text-foreground text-sm transition-colors">Blog</Link></li>
+-                <li><Link href="#" className="text-foreground/70 hover:text-foreground text-sm transition-colors">Help Center</Link></li>
+-                <li><Link href="#" className="text-foreground/70 hover:text-foreground text-sm transition-colors">Contact</Link></li>
+-              </ul>
+-            </div>
+-            <div>
+-              <h4 className="font-bold text-foreground mb-4 text-sm">LEGAL</h4>
+-              <ul className="space-y-3">
+-                <li><Link href="#" className="text-foreground/70 hover:text-foreground text-sm transition-colors">Privacy</Link></li>
+-                <li><Link href="#" className="text-foreground/70 hover:text-foreground text-sm transition-colors">Terms</Link></li>
+-                <li><Link href="#" className="text-foreground/70 hover:text-foreground text-sm transition-colors">Cookie Policy</Link></li>
+-              </ul>
+-            </div>
+-          </div>
++function SectionTitle({ kicker, title, href, cta }) {
++  return (
++    <div className="mb-6 flex items-end justify-between gap-4">
++      <div>
++        <p className="font-hand text-xl text-accent">{kicker}</p>
++        <h2 className="font-display text-2xl font-extrabold text-foreground sm:text-3xl">{title}</h2>
++      </div>
++      {href && (
++        <Link
++          href={href}
++          className="group hidden items-center gap-1.5 rounded-full border border-border bg-card px-4 py-2 text-xs font-extrabold text-foreground transition-all hover:border-primary/40 hover:text-primary sm:inline-flex"
++        >
++          {cta} <ArrowRight size={14} className="transition-transform group-hover:translate-x-0.5" />
++        </Link>
++      )}
++    </div>
++  );
++}
+ 
+-          <div className="pt-8 border-t border-border">
+-            <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+-              <div className="flex items-center gap-2">
+-                <div className="w-6 h-6 rounded-lg bg-primary flex items-center justify-center text-primary-foreground font-bold text-sm">
+-                  E
+-                </div>
+-                <span className="font-bold text-foreground">EssayHub</span>
+-              </div>
+-              <p className="text-foreground/70 text-sm">© 2026 EssayHub. All rights reserved. | Best writing platform on the web</p>
+-            </div>
+-          </div>
+-        </div>
+-      </footer>
++function PromptNote({ prompt }) {
++  return (
++    <motion.div
++      variants={boardItem}
++      whileHover={{ y: -6, scale: 1.03, rotate: 0 }}
++      style={{ rotate: 1.5 }}
++      className="relative rounded-3xl border-2 border-dashed border-accent/50 bg-card p-5"
++    >
++      <p className="text-[11px] font-extrabold uppercase tracking-wider text-accent">Today&apos;s prompt</p>
++      <p className="mt-2 font-hand text-2xl leading-tight text-foreground">{prompt}</p>
++      <Link
++        href="/create"
++        className="mt-4 inline-flex items-center gap-1.5 rounded-full bg-accent/10 px-3 py-1.5 text-xs font-extrabold text-accent transition-colors hover:bg-accent hover:text-accent-foreground"
++      >
++        <PenLine size={13} /> Answer it
++      </Link>
++    </motion.div>
++  );
++}
++
++function EmptyWall() {
++  return (
++    <div className="rounded-3xl border-2 border-dashed border-border bg-card/70 p-10 text-center">
++      <Pin size={40} className="mx-auto -rotate-12 text-accent" />
++      <h3 className="mt-3 font-display text-xl font-extrabold">The wall is waiting</h3>
++      <p className="mt-1 text-sm text-muted-foreground">Be the first ASYV student to pin a note.</p>
++      <Link
++        href="/create"
++        className="mt-5 inline-flex items-center gap-2 rounded-2xl bg-accent px-5 py-2.5 text-sm font-extrabold text-accent-foreground hover:scale-105 transition-transform"
++      >
++        <PenLine size={16} /> Start a note
++      </Link>
+     </div>
+   );
+ }
+diff --git a/app/posts/page.jsx b/app/posts/page.jsx
+index 5dd609d..c7c31ee 100644
+--- a/app/posts/page.jsx
++++ b/app/posts/page.jsx
+@@ -4,29 +4,35 @@ import { useState, useEffect, useRef } from 'react';
+ import Link from 'next/link';
+ import { Header } from '@/components/shared/Header';
+ import { Footer } from '@/components/shared/Footer';
+-import { EmojiBurstButton } from '@/components/ui/likeButton';
++import { EssayCard, EssayCardSkeleton } from '@/components/board/EssayCard';
++import { MasonryBoard } from '@/components/board/MasonryBoard';
++import { FreeformBoard } from '@/components/board/FreeformBoard';
+ import { categories, allTags } from '@/lib/posts';
++import { categoryMeta } from '@/lib/board';
+ import { api } from '@/lib/api-client';
+-import { ClapButton } from '@/components/ui/clap-button';
+-import { AuthorHoverCard } from '@/components/ui/author-hover-card';
+-import { UserAvatar } from '@/components/ui/UserAvatar';
+ import {
+-  MessageSquare,
+-  Share2,
+-  Bookmark,
+   Search,
+-  Clock,
+-  Sparkles,
+   X,
+-  TrendingUp,
+-  SlidersHorizontal,
+-  Copy,
++  Flame,
++  Clock3,
++  Heart,
++  LayoutGrid,
++  Move,
++  PenLine,
++  Hash,
++  Share2,
+   Check,
++  StickyNote,
+ } from 'lucide-react';
+ import { motion, AnimatePresence } from 'framer-motion';
+ import { toast } from 'sonner';
++import { cn } from '@/lib/utils';
+ 
+-import { HeartPopEffect } from '@/components/ui/HeartPopEffect';
++const SORTS = [
++  { value: 'recent', label: 'Fresh', icon: Clock3 },
++  { value: 'trending', label: 'Trending', icon: Flame },
++  { value: 'most_liked', label: 'Most loved', icon: Heart },
++];
+ 
+ export default function PostsPage() {
+   const [posts, setPosts] = useState([]);
+@@ -37,10 +43,19 @@ export default function PostsPage() {
+   const [sortBy, setSortBy] = useState('recent');
+   const [bookmarkedPosts, setBookmarkedPosts] = useState([]);
+   const [copiedId, setCopiedId] = useState(null);
++  const [view, setView] = useState('masonry');
++  const [showTags, setShowTags] = useState(false);
+ 
+   const searchInputRef = useRef(null);
+ 
+-  // Keyboard shortcut listener (Cmd+K / Ctrl+K)
++  useEffect(() => {
++    const params = new URLSearchParams(window.location.search);
++    const cat = params.get('category');
++    if (cat && categories.includes(cat)) setSelectedCategory(cat);
++    const saved = localStorage.getItem('asyv-board-view');
++    if (saved === 'freeform' || saved === 'masonry') setView(saved);
++  }, []);
++
+   useEffect(() => {
+     const handleKeyDown = (e) => {
+       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+@@ -59,7 +74,8 @@ export default function PostsPage() {
+     if (selectedTags.length) params.tags = selectedTags.join(',');
+ 
+     setLoading(true);
+-    api.getPosts(params)
++    api
++      .getPosts(params)
+       .then((data) => {
+         const fetchedPosts = data.posts || [];
+         setPosts(fetchedPosts);
+@@ -70,10 +86,13 @@ export default function PostsPage() {
+       .finally(() => setLoading(false));
+   }, [searchQuery, selectedCategory, selectedTags, sortBy]);
+ 
++  const changeView = (next) => {
++    setView(next);
++    localStorage.setItem('asyv-board-view', next);
++  };
++
+   const toggleTag = (tag) => {
+-    setSelectedTags((prev) =>
+-      prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag]
+-    );
++    setSelectedTags((prev) => (prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag]));
+   };
+ 
+   const handleLike = async (postId, e) => {
+@@ -81,39 +100,16 @@ export default function PostsPage() {
+       e.preventDefault();
+       e.stopPropagation();
+     }
+-    setPosts((prevPosts) =>
+-      prevPosts.map((p) => {
+-        if (p.id === postId) {
+-          const nextLiked = !p.liked;
+-          return {
+-            ...p,
+-            liked: nextLiked,
+-            likes: Math.max(0, p.likes + (nextLiked ? 1 : -1)),
+-          };
+-        }
+-        return p;
+-      })
+-    );
+-
++    const flip = (prevPosts) =>
++      prevPosts.map((p) =>
++        p.id === postId ? { ...p, liked: !p.liked, likes: Math.max(0, p.likes + (p.liked ? -1 : 1)) } : p
++      );
++    setPosts(flip);
+     try {
+       const result = await api.likePost(postId);
+-      setPosts((prevPosts) =>
+-        prevPosts.map((p) => (p.id === postId ? { ...p, liked: result.liked } : p))
+-      );
++      setPosts((prevPosts) => prevPosts.map((p) => (p.id === postId ? { ...p, liked: result.liked } : p)));
+     } catch {
+-      setPosts((prevPosts) =>
+-        prevPosts.map((p) => {
+-          if (p.id === postId) {
+-            const revertedLiked = !p.liked;
+-            return {
+-              ...p,
+-              liked: revertedLiked,
+-              likes: Math.max(0, p.likes + (revertedLiked ? 1 : -1)),
+-            };
+-          }
+-          return p;
+-        })
+-      );
++      setPosts(flip);
+       toast.error('Sign in to like essays');
+     }
+   };
+@@ -127,12 +123,11 @@ export default function PostsPage() {
+     setBookmarkedPosts((prev) =>
+       isCurrentlyBookmarked ? prev.filter((id) => id !== postId) : [...prev, postId]
+     );
+-
+     try {
+       const result = await api.bookmarkPost(postId);
+       if (result.bookmarked) {
+         setBookmarkedPosts((prev) => (prev.includes(postId) ? prev : [...prev, postId]));
+-        toast.success('Essay saved to bookmarks!');
++        toast.success('Saved to your bookmarks 📌');
+       } else {
+         setBookmarkedPosts((prev) => prev.filter((id) => id !== postId));
+         toast.success('Removed from bookmarks');
+@@ -151,337 +146,301 @@ export default function PostsPage() {
+     const url = `${window.location.origin}/posts/${postId}`;
+     navigator.clipboard.writeText(url);
+     setCopiedId(postId);
+-    toast.success('Link copied to clipboard!', {
+-      description: `"${title}"`,
+-    });
++    toast.success('Link copied to clipboard!', { description: `"${title}"` });
+     setTimeout(() => setCopiedId(null), 2000);
+   };
+ 
+-  const formatDate = (d) =>
+-    new Date(d).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
++  const renderCard = (post, tilt = true) => (
++    <EssayCard
++      post={post}
++      tilt={tilt}
++      onLike={handleLike}
++      onBookmark={toggleBookmark}
++      isBookmarked={bookmarkedPosts.includes(post.id)}
++      badge={
++        <button
++          type="button"
++          onClick={(e) => handleShare(post.id, post.title, e)}
++          aria-label="Copy link"
++          className="relative z-10 ml-auto rounded-full p-1.5 text-muted-foreground hover:bg-white/70 hover:text-primary dark:hover:bg-black/20 transition-colors"
++        >
++          {copiedId === post.id ? <Check size={13} className="text-primary" /> : <Share2 size={13} />}
++        </button>
++      }
++    />
++  );
++
++  const activeMeta = categoryMeta(selectedCategory);
++  const ActiveIcon = activeMeta.icon;
++  const hasFilters = searchQuery || selectedCategory !== 'All' || selectedTags.length > 0;
+ 
+   return (
+     <>
+       <Header />
+-      <main className="min-h-screen bg-background pb-20">
+-        {/* Header Hero Banner */}
+-        <section className="bg-secondary/40 border-b border-border/80 py-10">
+-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+-            <div className="max-w-3xl">
+-              {/* <div className="inline-flex items-center gap-2 px-3 py-1 bg-primary/10 border border-primary/20 text-primary rounded-full text-xs font-semibold uppercase tracking-wider mb-3">
+-                <Sparkles size={13} /> Curated Reading Feed
+-              </div> */}
+-              <h1 className="font-serif text-3xl sm:text-4xl font-extrabold text-foreground tracking-tight mb-2">
+-                Discover Thoughtful Writing
+-              </h1>
+-              <p className="text-muted-foreground text-sm sm:text-base leading-relaxed">
+-                Explore deep dives, essays, and stories crafted by writers around the world.
+-              </p>
+-            </div>
+-          </div>
+-        </section>
++      <main className="min-h-screen bg-canvas pb-24">
++        {/* Board banner */}
++        <section className="mx-auto max-w-7xl px-4 pt-8 sm:px-6 lg:px-8">
++          <motion.div
++            initial={{ opacity: 0, y: 16 }}
++            animate={{ opacity: 1, y: 0 }}
++            transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
++            className="relative overflow-hidden rounded-[2rem] border border-border bg-card p-6 shadow-[var(--shadow-note)] sm:p-8"
++          >
++            <div className="pointer-events-none absolute -right-16 -top-16 h-56 w-56 rounded-full bg-accent/10 blur-2xl" />
++            <div className="pointer-events-none absolute -bottom-20 left-10 h-48 w-48 rounded-full bg-primary/10 blur-2xl" />
+ 
+-        {/* <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6">
+-        
+-          <div className="sticky top-16 z-30 bg-background/95 backdrop-blur-md py-4 border-b border-border/60 mb-6">
+-            <div className="relative flex items-center max-w-4xl"> */}
+-               <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-8">
+-          {/* Interactive Search Bar & Hotkey Bar */}
+-          <div className="mb-8 relative max-w-3xl">
+-            <div className="relative flex items-center">
+-              <Search className="absolute left-4 text-muted-foreground" size={18} />
+-              <input
+-                ref={searchInputRef}
+-                type="text"
+-                placeholder="Search by title, topic, or keyword..."
+-                value={searchQuery}
+-                onChange={(e) => setSearchQuery(e.target.value)}
+-                className="w-full pl-11 pr-24 py-3 bg-card border border-border rounded-xl text-foreground text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all shadow-xs"
+-              />
+-              <div className="absolute right-3 flex items-center gap-2">
+-                {searchQuery && (
+-                  <button
+-                    onClick={() => setSearchQuery('')}
+-                    className="p-1 text-muted-foreground hover:text-foreground rounded-full"
+-                  >
+-                    <X size={16} />
+-                  </button>
+-                )}
+-                <kbd className="hidden sm:inline-flex items-center gap-0.5 text-[11px] font-mono font-medium text-muted-foreground bg-secondary border border-border px-2 py-1 rounded-md">
+-                  <span className="text-xs">⌘</span>K
+-                </kbd>
++            <div className="relative flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
++              <div className="flex items-start gap-4">
++                <motion.div
++                  key={selectedCategory}
++                  initial={{ scale: 0.6, rotate: -20 }}
++                  animate={{ scale: 1, rotate: -6 }}
++                  className="grid h-16 w-16 shrink-0 place-items-center rounded-2xl bg-note-butter text-3xl shadow-sm"
++                >
++                  <ActiveIcon size={30} strokeWidth={2.5} className={activeMeta.tone} />
++                </motion.div>
++                <div>
++                  <p className="font-hand text-xl text-accent">ASYV Writing board</p>
++                  <h1 className="font-display text-3xl font-extrabold leading-tight text-foreground sm:text-4xl">
++                    {selectedCategory === 'All' ? 'The Village Wall' : activeMeta.label}
++                  </h1>
++                  <p className="mt-1 text-sm text-muted-foreground">
++                    {loading ? 'Pinning notes…' : `${posts.length} ${posts.length === 1 ? 'note' : 'notes'} from ASYV students`}
++                  </p>
++                </div>
+               </div>
+-            </div>
+-          </div>
+ 
+-          <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
+-            {/* Sidebar Filters */}
+-            <aside className="lg:col-span-1 space-y-6">
+-              {/* Sort By Toggle */}
+-              <div className="bg-card border border-border p-5 rounded-xl shadow-xs">
+-                <h3 className="font-bold text-xs uppercase tracking-wider text-muted-foreground mb-3 flex items-center gap-2">
+-                  <SlidersHorizontal size={14} /> Sort Feed
+-                </h3>
+-                <div className="grid grid-cols-2 gap-1.5 p-1 bg-secondary rounded-lg">
+-                  {['recent', 'trending'].map((sort) => (
++              <div className="flex w-full flex-col gap-3 sm:flex-row lg:w-auto">
++                <div className="relative flex-1 lg:w-80">
++                  <Search size={17} className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground" />
++                  <input
++                    ref={searchInputRef}
++                    type="text"
++                    placeholder="Search the wall…"
++                    value={searchQuery}
++                    onChange={(e) => setSearchQuery(e.target.value)}
++                    className="w-full rounded-2xl border-2 border-transparent bg-input py-3 pl-11 pr-16 text-sm font-semibold text-foreground placeholder:text-muted-foreground focus:border-primary/40 focus:bg-card focus:outline-none transition-colors"
++                  />
++                  {searchQuery ? (
+                     <button
+-                      key={sort}
+-                      onClick={() => setSortBy(sort)}
+-                      className={`py-1.5 rounded-md text-xs font-semibold capitalize transition-all ${
+-                        sortBy === sort
+-                          ? 'bg-card text-foreground shadow-xs'
+-                          : 'text-muted-foreground hover:text-foreground'
+-                      }`}
++                      onClick={() => setSearchQuery('')}
++                      className="absolute right-3 top-1/2 -translate-y-1/2 rounded-full p-1 text-muted-foreground hover:bg-secondary"
++                      aria-label="Clear search"
+                     >
+-                      {sort === 'trending' ? '🔥 Trending' : '✨ Recent'}
++                      <X size={15} />
+                     </button>
+-                  ))}
++                  ) : (
++                    <kbd className="absolute right-3 top-1/2 hidden -translate-y-1/2 rounded-lg border border-border bg-card px-1.5 py-0.5 text-[10px] font-bold text-muted-foreground sm:block">
++                      ⌘K
++                    </kbd>
++                  )}
+                 </div>
++                <Link
++                  href="/create"
++                  className="inline-flex items-center justify-center gap-2 rounded-2xl bg-accent px-5 py-3 text-sm font-extrabold text-accent-foreground shadow-[0_10px_24px_-12px_rgba(249,115,22,0.8)] transition-all hover:-translate-y-0.5 hover:scale-105"
++                >
++                  <PenLine size={16} /> Pin a note
++                </Link>
+               </div>
++            </div>
++          </motion.div>
++        </section>
+ 
+-              {/* Categories */}
+-              <div className="bg-card border border-border p-5 rounded-xl shadow-xs">
+-                <h3 className="font-bold text-xs uppercase tracking-wider text-muted-foreground mb-3">
+-                  Categories
+-                </h3>
+-                <div className="space-y-1">
+-                  {categories.map((category) => {
+-                    const isSelected = selectedCategory === category;
+-                    return (
+-                      <button
+-                        key={category}
+-                        onClick={() => setSelectedCategory(category)}
+-                        className={`relative w-full text-left px-3.5 py-2 rounded-lg text-xs font-semibold transition-all ${
+-                          isSelected
+-                            ? 'bg-primary text-primary-foreground shadow-xs'
+-                            : 'text-muted-foreground hover:bg-secondary hover:text-foreground'
+-                        }`}
+-                      >
+-                        {category}
+-                      </button>
+-                    );
+-                  })}
+-                </div>
++        {/* Toolbar */}
++        <section className="sticky top-[5.5rem] z-30 mx-auto mt-5 max-w-7xl px-4 sm:px-6 lg:px-8">
++          <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-border bg-card/85 p-2 shadow-sm backdrop-blur-md">
++            <div className="flex flex-1 gap-1.5 overflow-x-auto no-scrollbar">
++              {categories.map((cat) => {
++                const CatIcon = categoryMeta(cat).icon;
++                const active = selectedCategory === cat;
++                return (
++                  <motion.button
++                    key={cat}
++                    whileHover={{ y: -2 }}
++                    whileTap={{ scale: 0.95 }}
++                    onClick={() => setSelectedCategory(cat)}
++                    className={cn(
++                      'relative flex shrink-0 items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-extrabold transition-colors',
++                      active ? 'text-primary-foreground' : 'text-foreground/70 hover:bg-secondary hover:text-foreground'
++                    )}
++                  >
++                    {active && (
++                      <motion.span
++                        layoutId="cat-pill"
++                        className="absolute inset-0 rounded-xl bg-primary"
++                        transition={{ type: 'spring', stiffness: 400, damping: 32 }}
++                      />
++                    )}
++                    <CatIcon size={14} strokeWidth={2.5} className="relative" />
++                    <span className="relative">{cat === 'All' ? 'All notes' : cat}</span>
++                  </motion.button>
++                );
++              })}
++            </div>
++
++            <div className="flex items-center gap-1.5">
++              <button
++                onClick={() => setShowTags((s) => !s)}
++                className={cn(
++                  'flex items-center gap-1 rounded-xl px-3 py-2 text-xs font-extrabold transition-colors',
++                  showTags || selectedTags.length ? 'bg-accent/10 text-accent' : 'text-foreground/70 hover:bg-secondary'
++                )}
++              >
++                <Hash size={14} /> Tags{selectedTags.length ? ` · ${selectedTags.length}` : ''}
++              </button>
++
++              <div className="flex rounded-xl bg-secondary p-1">
++                {SORTS.map(({ value, label, icon: Icon }) => (
++                  <button
++                    key={value}
++                    onClick={() => setSortBy(value)}
++                    title={label}
++                    className={cn(
++                      'flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-extrabold transition-all',
++                      sortBy === value ? 'bg-card text-accent shadow-sm' : 'text-muted-foreground hover:text-foreground'
++                    )}
++                  >
++                    <Icon size={13} />
++                    <span className="hidden md:inline">{label}</span>
++                  </button>
++                ))}
+               </div>
+ 
+-              {/* Tags */}
+-              <div className="bg-card border border-border p-5 rounded-xl shadow-xs">
+-                <h3 className="font-bold text-xs uppercase tracking-wider text-muted-foreground mb-3">
+-                  Filter by Tag
+-                </h3>
+-                <div className="flex flex-wrap gap-1.5">
++              <div className="hidden rounded-xl bg-secondary p-1 md:flex">
++                {[
++                  { value: 'masonry', icon: LayoutGrid, label: 'Masonry wall' },
++                  { value: 'freeform', icon: Move, label: 'Free canvas' },
++                ].map(({ value, icon: Icon, label }) => (
++                  <button
++                    key={value}
++                    onClick={() => changeView(value)}
++                    title={label}
++                    aria-label={label}
++                    className={cn(
++                      'rounded-lg p-1.5 transition-all',
++                      view === value ? 'bg-card text-primary shadow-sm' : 'text-muted-foreground hover:text-foreground'
++                    )}
++                  >
++                    <Icon size={15} />
++                  </button>
++                ))}
++              </div>
++            </div>
++          </div>
++
++          <AnimatePresence initial={false}>
++            {showTags && (
++              <motion.div
++                initial={{ height: 0, opacity: 0 }}
++                animate={{ height: 'auto', opacity: 1 }}
++                exit={{ height: 0, opacity: 0 }}
++                className="overflow-hidden"
++              >
++                <div className="mt-2 flex flex-wrap gap-1.5 rounded-2xl border border-border bg-card/90 p-3 backdrop-blur-md">
+                   {allTags.map((tag) => {
+-                    const isSelected = selectedTags.includes(tag);
++                    const active = selectedTags.includes(tag);
+                     return (
+                       <button
+                         key={tag}
+                         onClick={() => toggleTag(tag)}
+-                        className={`px-2.5 py-1 rounded-full text-xs font-medium transition-all ${
+-                          isSelected
+-                            ? 'bg-primary text-primary-foreground shadow-xs'
+-                            : 'bg-secondary text-muted-foreground hover:bg-muted hover:text-foreground'
+-                        }`}
++                        className={cn(
++                          'rounded-full border px-3 py-1 text-xs font-bold transition-all hover:-translate-y-0.5',
++                          active
++                            ? 'border-accent bg-accent text-accent-foreground'
++                            : 'border-border bg-card text-foreground/70 hover:border-accent/50 hover:text-accent'
++                        )}
+                       >
+                         #{tag}
+                       </button>
+                     );
+                   })}
+                 </div>
+-              </div>
+-            </aside>
+-
+-            {/* Posts Content Feed inside Fixed Height Smooth Motion Container */}
+-            <div className="lg:col-span-3">
+-              {loading ? (
+-                <div className="space-y-5">
+-                  {[1, 2, 3].map((n) => (
+-                    <div
+-                      key={n}
+-                      className="bg-card border border-border p-6 rounded-xl space-y-4 skeleton-shimmer"
+-                    >
+-                      <div className="h-4 bg-muted/60 rounded-md w-1/4" />
+-                      <div className="h-6 bg-muted/80 rounded-md w-3/4" />
+-                      <div className="h-4 bg-muted/50 rounded-md w-full" />
+-                      <div className="h-4 bg-muted/50 rounded-md w-2/3" />
+-                    </div>
+-                  ))}
+-                </div>
+-              ) : posts.length === 0 ? (
+-                <div className="text-center py-16 px-6 bg-card border border-border rounded-xl">
+-                  <div className="w-12 h-12 rounded-full bg-secondary text-muted-foreground flex items-center justify-center mx-auto mb-4 text-xl">
+-                    🔍
+-                  </div>
+-                  <h3 className="font-serif text-xl font-bold mb-2 text-foreground">No essays found</h3>
+-                  <p className="text-muted-foreground text-sm mb-6 max-w-sm mx-auto">
+-                    Try adjusting your search query or switching categories to explore more stories.
+-                  </p>
+-                  <button
+-                    onClick={() => {
+-                      setSearchQuery('');
+-                      setSelectedCategory('All');
+-                      setSelectedTags([]);
+-                    }}
+-                    className="px-4 py-2 bg-secondary text-foreground text-xs font-semibold rounded-lg hover:bg-muted transition-colors"
+-                  >
+-                    Reset Filters
+-                  </button>
+-                </div>
+-              ) : (
+-                // <div className="max-h-[calc(100vh)] overflow-y-auto scroll-smooth custom-scrollbar pr-2 space-y-6">
+-                 <div className="space-y-6">
+-                 <AnimatePresence>
+-                    {posts.map((post) => {
+-                      const isBookmarked = bookmarkedPosts.includes(post.id);
+-                      return (
+-                        <motion.article
+-                          key={post.id}
+-                          initial={{ opacity: 0, y: 12 }}
+-                          animate={{ opacity: 1, y: 0 }}
+-                          exit={{ opacity: 0, scale: 0.98 }}
+-                          whileHover={{ y: -2, scale: 1.003 }}
+-                          transition={{ duration: 0.25 }}
+-                          className="group bg-card border border-border/80 hover:border-primary/50 rounded-2xl overflow-hidden shadow-xs hover:shadow-xl transition-all duration-300"
+-                        >
+-                          <div className="flex flex-col md:flex-row gap-6 p-6 sm:p-7">
+-                            {post.featured_image && (
+-                              <HeartPopEffect
+-                                isLiked={post.liked}
+-                                onToggle={(e) => handleLike(post.id, e)}
+-                                className="md:w-56 h-40 md:h-auto flex-shrink-0 relative overflow-hidden rounded-xl bg-secondary"
+-                              >
+-                                <img
+-                                  src={post.featured_image}
+-                                  alt={post.title}
+-                                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+-                                />
+-                              </HeartPopEffect>
+-                            )}
+-                            <div className="flex-1 flex flex-col justify-between">
+-                              <div>
+-                                {post.author && (
+-                                  <div className="flex items-center gap-3 mb-3">
+-                                    <AuthorHoverCard author={post.author}>
+-                                      <div className="flex items-center gap-2">
+-                                        <UserAvatar
+-                                          src={post.author.avatar}
+-                                          name={post.author.name}
+-                                          size="sm"
+-                                        />
+-                                        <span className="font-semibold text-xs text-foreground hover:text-primary transition-colors">
+-                                          {post.author.name}
+-                                        </span>
+-                                      </div>
+-                                    </AuthorHoverCard>
+-
+-                                    <span className="text-muted-foreground text-xs">•</span>
+-                                    <span className="text-xs text-muted-foreground">
+-                                      {formatDate(post.created_at)}
+-                                    </span>
+-                                    <span className="text-muted-foreground text-xs hidden sm:inline">•</span>
+-
+-                                    <div className="hidden sm:inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/50 px-2 py-0.5 rounded-full">
+-                                      <Clock size={11} /> {post.read_time} min read
+-                                    </div>
+-                                  </div>
+-                                )}
+-
+-                                <Link href={`/posts/${post.id}`} className="block group/link">
+-                                  <h2 className="font-serif text-xl sm:text-2xl font-bold mb-2.5 text-foreground group-hover/link:text-primary transition-colors leading-snug">
+-                                    {post.title}
+-                                  </h2>
+-                                </Link>
+-
+-                                <p className="text-muted-foreground text-sm line-clamp-2 leading-relaxed mb-4">
+-                                  {post.excerpt}
+-                                </p>
+-                              </div>
+-
+-                              <div>
+-                                <div className="flex flex-wrap gap-1.5 mb-4">
+-                                  <span className="text-[11px] font-semibold bg-secondary text-foreground px-2.5 py-0.5 rounded-full">
+-                                    {post.category}
+-                                  </span>
+-                                  {post.tags.slice(0, 3).map((tag) => (
+-                                    <span
+-                                      key={tag}
+-                                      className="text-[11px] text-muted-foreground bg-secondary/60 px-2 py-0.5 rounded-full"
+-                                    >
+-                                      #{tag}
+-                                    </span>
+-                                  ))}
+-                                </div>
+-
+-                                <div className="flex items-center justify-between pt-3 border-t border-border/60">
+-                                  <div className="flex items-center gap-3">
+-                                    <HeartPopEffect
+-                                      isLiked={post.liked}
+-                                      onToggle={(e) => handleLike(post.id, e)}
+-                                    >
+-                                      <div
+-                                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border transition-all ${
+-                                          post.liked
+-                                            ? 'bg-rose-500/10 text-rose-600 border-rose-300 dark:border-rose-900'
+-                                            : 'bg-secondary border-border text-muted-foreground hover:text-foreground'
+-                                        }`}
+-                                      >
+-                                        <span>{post.liked ? '❤️' : '🤍'}</span>
+-                                        <span>{post.likes}</span>
+-                                      </div>
+-                                    </HeartPopEffect>
+-
+-                                    <Link
+-                                      href={`/posts/${post.id}#comments`}
+-                                      className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground px-2.5 py-1.5 rounded-full hover:bg-secondary transition-colors"
+-                                    >
+-                                      <MessageSquare size={16} />
+-                                      <span className="font-medium">{post.comments}</span>
+-                                    </Link>
+-                                  </div>
++              </motion.div>
++            )}
++          </AnimatePresence>
++        </section>
+ 
+-                                  <div className="flex items-center gap-1">
+-                                    <button
+-                                      onClick={(e) => handleShare(post.id, post.title, e)}
+-                                      className="p-2 text-muted-foreground hover:text-foreground hover:bg-secondary rounded-full transition-colors"
+-                                      title="Share link"
+-                                    >
+-                                      {copiedId === post.id ? (
+-                                        <Check size={17} className="text-emerald-500" />
+-                                      ) : (
+-                                        <Share2 size={17} />
+-                                      )}
+-                                    </button>
++        {hasFilters && (
++          <div className="mx-auto mt-4 flex max-w-7xl flex-wrap items-center gap-2 px-4 text-xs font-bold sm:px-6 lg:px-8">
++            <span className="text-muted-foreground">Filtering:</span>
++            {selectedCategory !== 'All' && (
++              <FilterChip onClear={() => setSelectedCategory('All')}>{selectedCategory}</FilterChip>
++            )}
++            {selectedTags.map((t) => (
++              <FilterChip key={t} onClear={() => toggleTag(t)}>
++                #{t}
++              </FilterChip>
++            ))}
++            {searchQuery && <FilterChip onClear={() => setSearchQuery('')}>“{searchQuery}”</FilterChip>}
++            <button
++              onClick={() => {
++                setSearchQuery('');
++                setSelectedCategory('All');
++                setSelectedTags([]);
++              }}
++              className="text-accent hover:underline"
++            >
++              Clear all
++            </button>
++          </div>
++        )}
+ 
+-                                    <motion.button
+-                                      whileTap={{ scale: 0.8 }}
+-                                      onClick={(e) => toggleBookmark(post.id, e)}
+-                                      className={`p-2 rounded-full transition-colors ${
+-                                        isBookmarked
+-                                          ? 'text-amber-500 bg-amber-50 dark:bg-amber-950/40'
+-                                          : 'text-muted-foreground hover:text-foreground hover:bg-secondary'
+-                                      }`}
+-                                      title={isBookmarked ? 'Saved' : 'Save essay'}
+-                                    >
+-                                      <Bookmark
+-                                        size={18}
+-                                        className={isBookmarked ? 'fill-amber-500 text-amber-500' : ''}
+-                                      />
+-                                    </motion.button>
+-                                  </div>
+-                                </div>
+-                              </div>
+-                            </div>
+-                          </div>
+-                        </motion.article>
+-                      );
+-                    })}
+-                  </AnimatePresence>
+-                </div>
+-              )}
++        {/* Board */}
++        <section className="mx-auto mt-8 max-w-7xl px-4 sm:px-6 lg:px-8">
++          {loading ? (
++            <div className="columns-1 gap-5 sm:columns-2 lg:columns-3 xl:columns-4">
++              {[1, 2, 3, 4, 5, 6, 7, 8].map((n) => (
++                <EssayCardSkeleton key={n} tall={n % 3 === 1} />
++              ))}
+             </div>
+-          </div>
+-        </div>
++          ) : posts.length === 0 ? (
++            <motion.div
++              initial={{ opacity: 0, scale: 0.95 }}
++              animate={{ opacity: 1, scale: 1 }}
++              className="mx-auto max-w-md rounded-[2rem] border-2 border-dashed border-border bg-card/80 p-10 text-center"
++            >
++              <StickyNote size={48} className="mx-auto animate-bob text-accent" />
++              <h3 className="mt-4 font-display text-xl font-extrabold text-foreground">No notes here yet</h3>
++              <p className="mt-1 text-sm text-muted-foreground">
++                Try another board or tag — or be the first to pin something!
++              </p>
++              <Link
++                href="/create"
++                className="mt-5 inline-flex items-center gap-2 rounded-2xl bg-accent px-5 py-2.5 text-sm font-extrabold text-accent-foreground transition-transform hover:scale-105"
++              >
++                <PenLine size={16} /> Pin the first note
++              </Link>
++            </motion.div>
++          ) : view === 'freeform' ? (
++            <>
++              <div className="hidden md:block">
++                <FreeformBoard items={posts} renderItem={(post) => renderCard(post, false)} />
++              </div>
++              <div className="md:hidden">
++                <MasonryBoard key={`${selectedCategory}-${sortBy}`}>{posts.map((post) => <div key={post.id}>{renderCard(post)}</div>)}</MasonryBoard>
++              </div>
++            </>
++          ) : (
++            <MasonryBoard key={`${selectedCategory}-${sortBy}-${selectedTags.join()}`}>
++              {posts.map((post) => (
++                <div key={post.id}>{renderCard(post)}</div>
++              ))}
++            </MasonryBoard>
++          )}
++        </section>
+       </main>
+       <Footer />
+     </>
+   );
+ }
++
++function FilterChip({ children, onClear }) {
++  return (
++    <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2.5 py-1 text-primary">
++      {children}
++      <button onClick={onClear} aria-label="Remove filter" className="rounded-full hover:bg-primary/20">
++        <X size={12} />
++      </button>
++    </span>
++  );
++}
+diff --git a/app/template.jsx b/app/template.jsx
+new file mode 100644
+index 0000000..595208f
+--- /dev/null
++++ b/app/template.jsx
+@@ -0,0 +1,15 @@
++'use client';
++
++import { motion } from 'framer-motion';
++
++export default function Template({ children }) {
++  return (
++    <motion.div
++      initial={{ opacity: 0, y: 12 }}
++      animate={{ opacity: 1, y: 0 }}
++      transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
++    >
++      {children}
++    </motion.div>
++  );
++}
+diff --git a/components/board/EssayCard.jsx b/components/board/EssayCard.jsx
+new file mode 100644
+index 0000000..7f878fc
+--- /dev/null
++++ b/components/board/EssayCard.jsx
+@@ -0,0 +1,165 @@
++'use client';
++
++import Link from 'next/link';
++import { motion } from 'framer-motion';
++import { Heart, MessageCircle, Bookmark, Clock } from 'lucide-react';
++import { UserAvatar } from '@/components/ui/UserAvatar';
++import { boardItem, noteStyleFor, noteTiltFor, categoryMeta, formatShortDate } from '@/lib/board';
++import { cn } from '@/lib/utils';
++
++export function EssayCard({
++  post,
++  onLike,
++  onBookmark,
++  isBookmarked = false,
++  actions,
++  badge,
++  tilt = true,
++  className = '',
++}) {
++  const style = noteStyleFor(post.id);
++  const rotate = tilt ? noteTiltFor(post.id) : 0;
++  const CategoryIcon = categoryMeta(post.category).icon;
++  const tags = post.tags || [];
++
++  return (
++    <motion.article
++      variants={boardItem}
++      style={{ rotate }}
++      whileHover={{ y: -6, scale: 1.03, rotate: 0 }}
++      whileTap={{ scale: 0.99 }}
++      transition={{ type: 'spring', stiffness: 300, damping: 22 }}
++      className={cn(
++        'group relative rounded-3xl border border-black/5 dark:border-white/5 p-4 sm:p-5',
++        'shadow-[var(--shadow-note)] hover:shadow-[var(--shadow-float)] transition-shadow duration-300',
++        style.bg,
++        className
++      )}
++    >
++      <span aria-hidden className={cn('tape', style.tape)} />
++
++      {post.featured_image && (
++        <div className="relative mb-4 overflow-hidden rounded-2xl bg-secondary aspect-[4/3]">
++          <img
++            src={post.featured_image}
++            alt=""
++            className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
++            loading="lazy"
++          />
++        </div>
++      )}
++
++      <div className="mb-3 flex flex-wrap items-center gap-2">
++        <span className={cn('inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-extrabold', style.chip)}>
++          <CategoryIcon size={12} strokeWidth={2.75} aria-hidden />
++          {post.category}
++        </span>
++        {post.read_time ? (
++          <span className="inline-flex items-center gap-1 rounded-full bg-white/70 dark:bg-black/20 px-2 py-1 text-[11px] font-bold text-muted-foreground">
++            <Clock size={11} /> {post.read_time} min
++          </span>
++        ) : null}
++        {badge}
++      </div>
++
++      <h3 className="font-display text-lg sm:text-xl font-extrabold leading-snug text-foreground mb-1.5">
++        <Link
++          href={`/posts/${post.id}`}
++          className="outline-none after:absolute after:inset-0 after:rounded-3xl after:content-[''] focus-visible:underline"
++        >
++          {post.title || 'Untitled'}
++        </Link>
++      </h3>
++
++      {post.excerpt && (
++        <p className="text-sm leading-relaxed text-foreground/70 line-clamp-3 mb-3">{post.excerpt}</p>
++      )}
++
++      {tags.length > 0 && (
++        <div className="mb-4 flex flex-wrap gap-1.5">
++          {tags.slice(0, 3).map((tag) => (
++            <span
++              key={tag}
++              className="rounded-full border border-primary/25 bg-white/60 dark:bg-black/20 px-2 py-0.5 text-[11px] font-bold text-primary"
++            >
++              #{tag}
++            </span>
++          ))}
++        </div>
++      )}
++
++      <div className="flex items-center justify-between gap-2 border-t border-black/5 dark:border-white/10 pt-3">
++        {post.author ? (
++          <Link
++            href={`/author/${post.author.id}`}
++            className="relative z-10 flex min-w-0 items-center gap-2 rounded-full pr-2 hover:bg-white/60 dark:hover:bg-black/20 transition-colors"
++          >
++            <UserAvatar src={post.author.avatar} name={post.author.name} size="xs" />
++            <span className="truncate text-xs font-extrabold text-foreground">{post.author.name}</span>
++            {post.created_at && (
++              <span className="hidden shrink-0 whitespace-nowrap text-[11px] font-semibold text-muted-foreground 2xl:inline">
++                · {formatShortDate(post.created_at)}
++              </span>
++            )}
++          </Link>
++        ) : (
++          <span />
++        )}
++
++        <div className="relative z-10 flex items-center gap-1">
++          {actions ?? (
++            <>
++              <motion.button
++                type="button"
++                whileTap={{ scale: 0.8 }}
++                onClick={(e) => onLike?.(post.id, e)}
++                aria-label={post.liked ? 'Unlike' : 'Like'}
++                className={cn(
++                  'flex items-center gap-1 rounded-full px-2 py-1 text-xs font-extrabold transition-colors',
++                  post.liked ? 'text-rose-500 bg-rose-500/10' : 'text-muted-foreground hover:text-rose-500 hover:bg-white/70 dark:hover:bg-black/20'
++                )}
++              >
++                <Heart size={14} className={post.liked ? 'fill-rose-500' : ''} />
++                {post.likes ?? 0}
++              </motion.button>
++              <Link
++                href={`/posts/${post.id}#comments`}
++                className="flex items-center gap-1 rounded-full px-2 py-1 text-xs font-extrabold text-muted-foreground hover:text-primary hover:bg-white/70 dark:hover:bg-black/20 transition-colors"
++                aria-label="Comments"
++              >
++                <MessageCircle size={14} />
++                {post.comments ?? 0}
++              </Link>
++              {onBookmark && (
++                <motion.button
++                  type="button"
++                  whileTap={{ scale: 0.8 }}
++                  onClick={(e) => onBookmark(post.id, e)}
++                  aria-label={isBookmarked ? 'Remove bookmark' : 'Save'}
++                  className={cn(
++                    'rounded-full p-1.5 transition-colors',
++                    isBookmarked ? 'text-accent bg-accent/10' : 'text-muted-foreground hover:text-accent hover:bg-white/70 dark:hover:bg-black/20'
++                  )}
++                >
++                  <Bookmark size={14} className={isBookmarked ? 'fill-accent' : ''} />
++                </motion.button>
++              )}
++            </>
++          )}
++        </div>
++      </div>
++    </motion.article>
++  );
++}
++
++export function EssayCardSkeleton({ tall = false }) {
++  return (
++    <div className="mb-5 break-inside-avoid rounded-3xl border border-border bg-card p-5 space-y-3">
++      {tall && <div className="aspect-[4/3] rounded-2xl skeleton-shimmer" />}
++      <div className="h-5 w-24 rounded-full skeleton-shimmer" />
++      <div className="h-6 w-4/5 rounded-lg skeleton-shimmer" />
++      <div className="h-4 w-full rounded-lg skeleton-shimmer" />
++      <div className="h-4 w-2/3 rounded-lg skeleton-shimmer" />
++    </div>
++  );
++}
+diff --git a/components/board/FreeformBoard.jsx b/components/board/FreeformBoard.jsx
+new file mode 100644
+index 0000000..7897360
+--- /dev/null
++++ b/components/board/FreeformBoard.jsx
+@@ -0,0 +1,147 @@
++'use client';
++
++import { useEffect, useLayoutEffect, useRef, useState } from 'react';
++import { motion, useMotionValue } from 'framer-motion';
++import { Move } from 'lucide-react';
++
++const CARD_WIDTH = 280;
++const GAP = 28;
++const STORAGE_KEY = 'asyv-board-positions';
++
++function readSaved() {
++  try {
++    return JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
++  } catch {
++    return {};
++  }
++}
++
++function DraggableNote({ id, initial, constraintsRef, onMove, onFront, z, children }) {
++  const x = useMotionValue(initial.x);
++  const y = useMotionValue(initial.y);
++  const dragged = useRef(false);
++
++  useEffect(() => {
++    x.set(initial.x);
++    y.set(initial.y);
++  }, [initial.x, initial.y, x, y]);
++
++  return (
++    <motion.div
++      drag
++      dragMomentum={false}
++      dragConstraints={constraintsRef}
++      dragElastic={0.08}
++      onDragStart={() => {
++        dragged.current = true;
++        onFront(id);
++      }}
++      onDragEnd={() => {
++        onMove(id, { x: x.get(), y: y.get() });
++        setTimeout(() => {
++          dragged.current = false;
++        }, 0);
++      }}
++      onClickCapture={(e) => {
++        if (dragged.current) {
++          e.preventDefault();
++          e.stopPropagation();
++        }
++      }}
++      whileDrag={{ scale: 1.05, rotate: 2, cursor: 'grabbing' }}
++      style={{ x, y, width: CARD_WIDTH, zIndex: z }}
++      className="absolute left-0 top-0 cursor-grab touch-none"
++    >
++      <div className="absolute -top-3 -right-3 z-20 grid h-7 w-7 place-items-center rounded-full bg-foreground text-background shadow-md opacity-0 transition-opacity [div:hover>&]:opacity-100">
++        <Move size={14} />
++      </div>
++      {children}
++    </motion.div>
++  );
++}
++
++export function FreeformBoard({ items, renderItem, estimateHeight = (item) => (item.featured_image ? 500 : 330) }) {
++  const containerRef = useRef(null);
++  const [width, setWidth] = useState(0);
++  const [saved, setSaved] = useState({});
++  const [order, setOrder] = useState([]);
++
++  useLayoutEffect(() => {
++    const el = containerRef.current;
++    if (!el) return;
++    const ro = new ResizeObserver(([entry]) => setWidth(entry.contentRect.width));
++    ro.observe(el);
++    return () => ro.disconnect();
++  }, []);
++
++  useEffect(() => {
++    setSaved(readSaved());
++  }, []);
++
++  const cols = Math.max(1, Math.floor((width + GAP) / (CARD_WIDTH + GAP)));
++
++  const colHeights = Array(cols).fill(0);
++  const positions = items.map((item, i) => {
++    const col = colHeights.indexOf(Math.min(...colHeights));
++    const jitter = ((i * 37) % 16) - 8;
++    const auto = { x: Math.max(0, col * (CARD_WIDTH + GAP) + jitter), y: colHeights[col] + 16 + Math.abs(jitter) };
++    colHeights[col] += estimateHeight(item) + GAP;
++    return saved[item.id] || auto;
++  });
++
++  const height = Math.max(560, ...colHeights.map((h) => h + 40), ...positions.map((p) => p.y + 520));
++
++  const handleMove = (id, pos) => {
++    setSaved((prev) => {
++      const next = { ...prev, [id]: pos };
++      try {
++        localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
++      } catch {}
++      return next;
++    });
++  };
++
++  const bringToFront = (id) => setOrder((prev) => [...prev.filter((x) => x !== id), id]);
++
++  const resetLayout = () => {
++    setSaved({});
++    try {
++      localStorage.removeItem(STORAGE_KEY);
++    } catch {}
++  };
++
++  return (
++    <div>
++      <div className="mb-4 flex items-center justify-between gap-3 text-xs font-bold text-muted-foreground">
++        <span className="font-hand text-lg text-accent">Drag the notes around to make the wall yours</span>
++        <button
++          type="button"
++          onClick={resetLayout}
++          className="rounded-full border border-border bg-card px-3 py-1.5 hover:text-foreground hover:border-primary/40 transition-colors"
++        >
++          Tidy up
++        </button>
++      </div>
++      <div
++        ref={containerRef}
++        className="relative rounded-[2rem] border-2 border-dashed border-border bg-canvas-lines p-4"
++        style={{ height }}
++      >
++        {width > 0 &&
++          items.map((item, i) => (
++            <DraggableNote
++              key={item.id}
++              id={item.id}
++              initial={positions[i]}
++              constraintsRef={containerRef}
++              onMove={handleMove}
++              onFront={bringToFront}
++              z={order.indexOf(item.id) + 2}
++            >
++              {renderItem(item)}
++            </DraggableNote>
++          ))}
++      </div>
++    </div>
++  );
++}
+diff --git a/components/board/MasonryBoard.jsx b/components/board/MasonryBoard.jsx
+new file mode 100644
+index 0000000..7660e25
+--- /dev/null
++++ b/components/board/MasonryBoard.jsx
+@@ -0,0 +1,21 @@
++'use client';
++
++import { Children } from 'react';
++import { motion } from 'framer-motion';
++import { boardContainer } from '@/lib/board';
++import { cn } from '@/lib/utils';
++
++export function MasonryBoard({ children, className = '', columns = 'sm:columns-2 lg:columns-3 xl:columns-4' }) {
++  return (
++    <motion.div
++      variants={boardContainer}
++      initial="hidden"
++      animate="show"
++      className={cn('columns-1 gap-5', columns, className)}
++    >
++      {Children.map(children, (child) =>
++        child ? <div className="mb-4 break-inside-avoid pt-4">{child}</div> : null
++      )}
++    </motion.div>
++  );
++}
+diff --git a/components/editor/RichTextEditor.jsx b/components/editor/RichTextEditor.jsx
+index 9394cc7..c968a69 100644
+--- a/components/editor/RichTextEditor.jsx
++++ b/components/editor/RichTextEditor.jsx
+@@ -52,7 +52,7 @@ export function RichTextEditor({
+       reader.onload = (event) => {
+         const img = document.createElement('img');
+         img.src = event.target?.result;
+-        img.className = 'max-w-full h-auto rounded-xl my-6 shadow-md border border-border';
++        img.className = 'max-w-full h-auto rounded-2xl my-6 shadow-md border border-border';
+         img.style.maxWidth = '100%';
+ 
+         const range = window.getSelection()?.getRangeAt(0);
+@@ -98,9 +98,9 @@ export function RichTextEditor({
+   };
+ 
+   return (
+-    <div className="border border-border/80 rounded-2xl bg-card shadow-xs">
++    <div className="rounded-3xl border-2 border-dashed border-border/80 bg-background/60 transition-colors focus-within:border-primary/40 focus-within:bg-card">
+       {/* Sticky Editorial Toolbar */}
+-      <div className="sticky top-16 z-20 bg-card border-b border-border/80 p-3 sm:p-4 rounded-t-2xl">
++      <div className="sticky top-24 z-20 m-2 rounded-2xl border border-border bg-card/90 p-2 shadow-sm backdrop-blur-md">
+         <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 text-muted-foreground">
+           {/* Formatting group */}
+           <div className="flex items-center gap-1 border-r border-border pr-2">
+@@ -108,7 +108,7 @@ export function RichTextEditor({
+               type="button"
+               onClick={() => executeCommand('bold')}
+               title="Bold"
+-              className="p-2 hover:text-foreground hover:bg-secondary rounded-lg transition-colors"
++              className="p-2 rounded-xl hover:text-primary hover:bg-note-mint hover:-translate-y-0.5 transition-all"
+             >
+               <Bold size={17} />
+             </button>
+@@ -116,7 +116,7 @@ export function RichTextEditor({
+               type="button"
+               onClick={() => executeCommand('italic')}
+               title="Italic"
+-              className="p-2 hover:text-foreground hover:bg-secondary rounded-lg transition-colors"
++              className="p-2 rounded-xl hover:text-primary hover:bg-note-mint hover:-translate-y-0.5 transition-all"
+             >
+               <Italic size={17} />
+             </button>
+@@ -124,7 +124,7 @@ export function RichTextEditor({
+               type="button"
+               onClick={() => executeCommand('underline')}
+               title="Underline"
+-              className="p-2 hover:text-foreground hover:bg-secondary rounded-lg transition-colors"
++              className="p-2 rounded-xl hover:text-primary hover:bg-note-mint hover:-translate-y-0.5 transition-all"
+             >
+               <Underline size={17} />
+             </button>
+@@ -132,7 +132,7 @@ export function RichTextEditor({
+               type="button"
+               onClick={() => executeCommand('strikethrough')}
+               title="Strikethrough"
+-              className="p-2 hover:text-foreground hover:bg-secondary rounded-lg transition-colors"
++              className="p-2 rounded-xl hover:text-primary hover:bg-note-mint hover:-translate-y-0.5 transition-all"
+             >
+               <Strikethrough size={17} />
+             </button>
+@@ -146,7 +146,7 @@ export function RichTextEditor({
+                   executeCommand('formatBlock', e.target.value);
+                 }
+               }}
+-              className="px-2.5 py-1.5 text-xs font-semibold bg-secondary text-foreground border border-border rounded-lg focus:outline-none cursor-pointer"
++              className="px-2.5 py-1.5 text-xs font-bold bg-secondary text-foreground border border-border rounded-xl focus:outline-none cursor-pointer"
+               defaultValue=""
+             >
+               <option value="">Paragraph</option>
+@@ -162,7 +162,7 @@ export function RichTextEditor({
+               type="button"
+               onClick={() => executeCommand('insertUnorderedList')}
+               title="Bullet List"
+-              className="p-2 hover:text-foreground hover:bg-secondary rounded-lg transition-colors"
++              className="p-2 rounded-xl hover:text-primary hover:bg-note-mint hover:-translate-y-0.5 transition-all"
+             >
+               <List size={17} />
+             </button>
+@@ -170,7 +170,7 @@ export function RichTextEditor({
+               type="button"
+               onClick={() => executeCommand('insertOrderedList')}
+               title="Numbered List"
+-              className="p-2 hover:text-foreground hover:bg-secondary rounded-lg transition-colors"
++              className="p-2 rounded-xl hover:text-primary hover:bg-note-mint hover:-translate-y-0.5 transition-all"
+             >
+               <ListOrdered size={17} />
+             </button>
+@@ -178,7 +178,7 @@ export function RichTextEditor({
+               type="button"
+               onClick={() => executeCommand('formatBlock', '<blockquote>')}
+               title="Quote"
+-              className="p-2 hover:text-foreground hover:bg-secondary rounded-lg transition-colors"
++              className="p-2 rounded-xl hover:text-primary hover:bg-note-mint hover:-translate-y-0.5 transition-all"
+             >
+               <Quote size={17} />
+             </button>
+@@ -190,7 +190,7 @@ export function RichTextEditor({
+               type="button"
+               onClick={() => executeCommand('justifyLeft')}
+               title="Align Left"
+-              className="p-2 hover:text-foreground hover:bg-secondary rounded-lg transition-colors"
++              className="p-2 rounded-xl hover:text-primary hover:bg-note-mint hover:-translate-y-0.5 transition-all"
+             >
+               <AlignLeft size={17} />
+             </button>
+@@ -198,7 +198,7 @@ export function RichTextEditor({
+               type="button"
+               onClick={() => executeCommand('justifyCenter')}
+               title="Align Center"
+-              className="p-2 hover:text-foreground hover:bg-secondary rounded-lg transition-colors"
++              className="p-2 rounded-xl hover:text-primary hover:bg-note-mint hover:-translate-y-0.5 transition-all"
+             >
+               <AlignCenter size={17} />
+             </button>
+@@ -206,7 +206,7 @@ export function RichTextEditor({
+               type="button"
+               onClick={() => executeCommand('justifyRight')}
+               title="Align Right"
+-              className="p-2 hover:text-foreground hover:bg-secondary rounded-lg transition-colors"
++              className="p-2 rounded-xl hover:text-primary hover:bg-note-mint hover:-translate-y-0.5 transition-all"
+             >
+               <AlignRight size={17} />
+             </button>
+@@ -218,7 +218,7 @@ export function RichTextEditor({
+               type="button"
+               onClick={insertLink}
+               title="Insert Link"
+-              className="p-2 hover:text-foreground hover:bg-secondary rounded-lg transition-colors"
++              className="p-2 rounded-xl hover:text-primary hover:bg-note-mint hover:-translate-y-0.5 transition-all"
+             >
+               <Link2 size={17} />
+             </button>
+@@ -226,7 +226,7 @@ export function RichTextEditor({
+               type="button"
+               onClick={insertImage}
+               title="Insert Image"
+-              className="p-2 hover:text-foreground hover:bg-secondary rounded-lg transition-colors"
++              className="p-2 rounded-xl hover:text-primary hover:bg-note-mint hover:-translate-y-0.5 transition-all"
+             >
+               <ImageIcon size={17} />
+             </button>
+@@ -246,7 +246,7 @@ export function RichTextEditor({
+               onClick={handleUndo}
+               disabled={historyIndex <= 0}
+               title="Undo"
+-              className="p-2 hover:text-foreground hover:bg-secondary rounded-lg transition-colors disabled:opacity-30"
++              className="p-2 rounded-xl hover:text-primary hover:bg-note-mint hover:-translate-y-0.5 transition-all disabled:opacity-30"
+             >
+               <Undo2 size={17} />
+             </button>
+@@ -255,7 +255,7 @@ export function RichTextEditor({
+               onClick={handleRedo}
+               disabled={historyIndex >= history.length - 1}
+               title="Redo"
+-              className="p-2 hover:text-foreground hover:bg-secondary rounded-lg transition-colors disabled:opacity-30"
++              className="p-2 rounded-xl hover:text-primary hover:bg-note-mint hover:-translate-y-0.5 transition-all disabled:opacity-30"
+             >
+               <Redo2 size={17} />
+             </button>
+@@ -266,7 +266,7 @@ export function RichTextEditor({
+       {/* Editor Content Area */}
+       <div className="relative min-h-[380px]">
+         {!value && (
+-          <div className="absolute top-6 left-6 sm:top-8 sm:left-8 text-muted-foreground/50 italic pointer-events-none select-none">
++          <div className="absolute top-6 left-6 sm:top-8 sm:left-8 font-hand text-2xl text-muted-foreground/60 pointer-events-none select-none">
+             {placeholder}
+           </div>
+         )}
+@@ -275,14 +275,14 @@ export function RichTextEditor({
+           contentEditable
+           onInput={updateContent}
+           suppressContentEditableWarning
+-          className="min-h-[380px] p-6 sm:p-8 focus:outline-none font-sans text-lg leading-relaxed text-foreground prose prose-zinc dark:prose-invert max-w-none"
++          className="min-h-[380px] p-6 sm:p-8 focus:outline-none editor-surface font-sans text-lg leading-relaxed text-foreground max-w-none"
+           style={{ outline: 'none' }}
+         />
+       </div>
+ 
+       {/* Editorial Footer Info */}
+-      <div className="bg-secondary/40 border-t border-border/60 px-6 py-2.5 flex items-center justify-between text-xs text-muted-foreground font-medium rounded-b-2xl">
+-        <span>Editorial Rich Text Editor</span>
++      <div className="flex items-center justify-between border-t border-dashed border-border px-6 py-2.5 text-xs font-bold text-muted-foreground">
++        <span>Canvas sheet</span>
+         <span>{editorRef.current?.textContent?.length || 0} characters</span>
+       </div>
+     </div>
+diff --git a/components/shared/Footer.jsx b/components/shared/Footer.jsx
+index 00a6619..c8828e5 100644
+--- a/components/shared/Footer.jsx
++++ b/components/shared/Footer.jsx
+@@ -1,86 +1,52 @@
+ 'use client';
+ 
+ import Link from 'next/link';
++import Image from 'next/image';
++import { Compass, PenLine, LayoutDashboard, Heart } from 'lucide-react';
++
++const links = [
++  { href: '/posts', label: 'Explore the wall', icon: Compass },
++  { href: '/create', label: 'Pin a note', icon: PenLine },
++  { href: '/dashboard', label: 'My board', icon: LayoutDashboard },
++];
+ 
+ export function Footer() {
+   return (
+-    <footer className="bg-secondary border-t border-border">
+-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+-        <div className="grid grid-cols-1 md:grid-cols-4 gap-8 mb-8">
+-          {/* Brand */}
+-          <div>
+-            <h3 className="font-bold text-lg mb-4">EssayHub</h3>
+-            <p className="text-sm text-muted-foreground">
+-              A platform for sharing thoughtful essays and engaging with writers from around the world.
++    <footer className="relative border-t border-border bg-card">
++      <div className="h-1.5 w-full bg-[linear-gradient(90deg,var(--primary)_0_33%,var(--note-butter)_33%_66%,var(--accent)_66%_100%)]" />
++      <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
++        <div className="flex flex-col gap-8 md:flex-row md:items-start md:justify-between">
++          <div className="max-w-sm">
++            <Link href="/" className="flex items-center gap-3">
++              <Image src="/agahozo.png" alt="ASYV" width={40} height={40} className="rounded-xl" />
++              <span className="font-display text-xl font-extrabold text-foreground">
++                ASYV <span className="text-primary">Writing</span>
++              </span>
++            </Link>
++            <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
++              The creative wall of Agahozo-Shalom Youth Village — where students pin essays, poems and ideas, and lift
++              each other up.
+             </p>
+           </div>
+ 
+-          {/* Product */}
+-          <div>
+-            <h4 className="font-semibold mb-4 text-foreground">Product</h4>
+-            <div className="space-y-2">
+-              <Link href="/posts" className="text-sm text-muted-foreground hover:text-foreground transition-colors block">
+-                Explore Essays
+-              </Link>
+-              <Link href="/create" className="text-sm text-muted-foreground hover:text-foreground transition-colors block">
+-                Write Essay
+-              </Link>
+-              <Link href="#" className="text-sm text-muted-foreground hover:text-foreground transition-colors block">
+-                Pricing
+-              </Link>
+-            </div>
+-          </div>
+-
+-          {/* Community */}
+-          <div>
+-            <h4 className="font-semibold mb-4 text-foreground">Community</h4>
+-            <div className="space-y-2">
+-              <Link href="#" className="text-sm text-muted-foreground hover:text-foreground transition-colors block">
+-                Blog
+-              </Link>
+-              <Link href="#" className="text-sm text-muted-foreground hover:text-foreground transition-colors block">
+-                Forums
+-              </Link>
+-              <Link href="#" className="text-sm text-muted-foreground hover:text-foreground transition-colors block">
+-                Events
+-              </Link>
+-            </div>
+-          </div>
+-
+-          {/* Legal */}
+-          <div>
+-            <h4 className="font-semibold mb-4 text-foreground">Legal</h4>
+-            <div className="space-y-2">
+-              <Link href="#" className="text-sm text-muted-foreground hover:text-foreground transition-colors block">
+-                Privacy
+-              </Link>
+-              <Link href="#" className="text-sm text-muted-foreground hover:text-foreground transition-colors block">
+-                Terms
+-              </Link>
+-              <Link href="#" className="text-sm text-muted-foreground hover:text-foreground transition-colors block">
+-                Contact
+-              </Link>
+-            </div>
+-          </div>
++          <nav className="flex flex-wrap gap-2">
++            {links.map(({ href, label, icon: Icon }) => (
++              <Link
++                key={href}
++                href={href}
++                className="inline-flex items-center gap-2 rounded-2xl border border-border bg-background px-4 py-2.5 text-sm font-bold text-foreground/80 transition-all hover:-translate-y-0.5 hover:border-primary/40 hover:text-primary hover:shadow-[var(--shadow-float)]"
++              >
++                <Icon size={16} /> {label}
++              </Link>
++            ))}
++          </nav>
+         </div>
+ 
+-        <div className="border-t border-border pt-8">
+-          <div className="flex flex-col md:flex-row justify-between items-center gap-4">
+-            <p className="text-sm text-muted-foreground">
+-              © 2026 EssayHub. All rights reserved.
+-            </p>
+-            <div className="flex gap-4">
+-              <a href="#" className="text-muted-foreground hover:text-foreground transition-colors">
+-                <span className="text-sm">Twitter</span>
+-              </a>
+-              <a href="#" className="text-muted-foreground hover:text-foreground transition-colors">
+-                <span className="text-sm">LinkedIn</span>
+-              </a>
+-              <a href="#" className="text-muted-foreground hover:text-foreground transition-colors">
+-                <span className="text-sm">GitHub</span>
+-              </a>
+-            </div>
+-          </div>
++        <div className="mt-10 flex flex-col items-center justify-between gap-3 border-t border-border pt-6 text-xs font-semibold text-muted-foreground sm:flex-row">
++          <p>© {new Date().getFullYear()} ASYV Writing · Agahozo-Shalom Youth Village, Rwanda</p>
++          <p className="inline-flex items-center gap-1.5">
++            Made with <Heart size={13} className="fill-accent text-accent" /> by ASYV students
++          </p>
+         </div>
+       </div>
+     </footer>
+diff --git a/components/shared/Header.jsx b/components/shared/Header.jsx
+index 4914704..9e7dcf0 100644
+--- a/components/shared/Header.jsx
++++ b/components/shared/Header.jsx
+@@ -138,12 +138,12 @@ export function Header() {
+   ];
+ 
+   const authLinks = user ? (
+-    <div className="flex items-center gap-3">
++    <div className="flex items-center gap-2">
+       {/* Quick Search Launcher Button */}
+       <motion.div whileHover={{ scale: 1.08, y: -2 }} whileTap={{ scale: 0.95 }}>
+         <Link
+           href="/posts"
+-          className="hidden xl:flex items-center gap-2.5 px-4 py-2 rounded-full bg-secondary/80 border border-border/80 text-muted-foreground hover:text-foreground text-xs font-bold hover:border-primary/50 transition-all cursor-pointer group shadow-xs"
++          className="hidden 2xl:flex items-center gap-2.5 px-4 py-2 rounded-full bg-secondary/80 border border-border/80 text-muted-foreground hover:text-foreground text-xs font-bold hover:border-primary/50 transition-all cursor-pointer group shadow-xs"
+           title="Search essays (Ctrl+K)"
+         >
+           <Search size={16} className="group-hover:text-primary transition-colors" />
+@@ -333,10 +333,10 @@ export function Header() {
+       <motion.div whileHover={{ scale: 1.1, y: -2 }} whileTap={{ scale: 0.92 }}>
+         <Link
+           href="/create"
+-          className="hidden sm:inline-flex items-center gap-2.5 px-6 py-2.5 rounded-full bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-500 text-white font-black text-sm shadow-[0_0_22px_rgba(16,185,129,0.4)] hover:shadow-[0_0_32px_rgba(16,185,129,0.65)] border border-white/30 transition-all duration-300 group cursor-pointer"
++          className="hidden sm:inline-flex items-center gap-2 whitespace-nowrap px-4 xl:px-5 py-2.5 rounded-full bg-accent text-accent-foreground font-black text-sm shadow-[0_10px_22px_-10px_rgba(249,115,22,0.8)] hover:shadow-[0_14px_28px_-10px_rgba(249,115,22,0.9)] transition-all duration-300 group cursor-pointer"
+         >
+           <PenSquare size={16} className="group-hover:rotate-12 transition-transform duration-300" />
+-          <span>Write</span>
++          <span className="hidden xl:inline">Pin a note</span>
+         </Link>
+       </motion.div>
+ 
+@@ -362,9 +362,9 @@ export function Header() {
+       <motion.div whileHover={{ scale: 1.08, y: -2 }} whileTap={{ scale: 0.95 }}>
+         <Link
+           href="/auth/signup"
+-          className="px-6 py-2.5 rounded-full bg-gradient-to-r from-emerald-600 to-teal-500 text-white text-sm font-black shadow-[0_0_22px_rgba(16,185,129,0.45)] hover:shadow-[0_0_32px_rgba(16,185,129,0.7)] transition-all border border-white/20 inline-block"
++          className="px-6 py-2.5 rounded-full bg-accent text-accent-foreground text-sm font-black shadow-[0_10px_22px_-10px_rgba(249,115,22,0.8)] hover:shadow-[0_14px_28px_-10px_rgba(249,115,22,0.9)] transition-all inline-block"
+         >
+-          Get Started
++          Join the wall
+         </Link>
+       </motion.div>
+     </div>
+@@ -374,12 +374,12 @@ export function Header() {
+     <header
+       className={`sticky top-0 z-50 transition-all duration-300 ${
+         scrolled
+-          ? 'bg-card/90 backdrop-blur-2xl border-b border-border/80 shadow-xl'
+-          : 'bg-background/95 backdrop-blur-xl border-b border-border/60'
++          ? 'bg-card/90 backdrop-blur-2xl border-b border-border/80 shadow-[var(--shadow-float)]'
++          : 'bg-background/80 backdrop-blur-xl border-b border-transparent'
+       }`}
+     >
+       {/* Top Ambient Glass Highlight Gradient Accent Line */}
+-      <div className="h-[2.5px] w-full bg-gradient-to-r from-emerald-500/40 via-primary to-amber-500/40" />
++      <div className="h-1 w-full bg-[linear-gradient(90deg,var(--primary)_0_33%,var(--note-butter)_33%_66%,var(--accent)_66%_100%)]" />
+ 
+       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+         <div className="flex justify-between items-center h-20">
+@@ -395,21 +395,21 @@ export function Header() {
+                 alt="ASYV Writing"
+                 width={46}
+                 height={46}
+-                className="rounded-xl ring-2 ring-primary/30 group-hover:ring-primary transition-all shadow-md"
++                className="rounded-2xl ring-2 ring-primary/20 group-hover:ring-accent transition-all shadow-md"
+               />
+             </motion.div>
+             <div className="flex flex-col">
+-              <span className="font-serif text-xl sm:text-2xl font-black text-foreground group-hover:text-primary transition-colors leading-none mb-1">
+-                ASYV Writing
++              <span className="whitespace-nowrap font-display text-xl sm:text-2xl font-extrabold text-foreground transition-colors leading-none mb-1">
++                ASYV <span className="text-primary">Writing</span>
+               </span>
+-              <span className="text-[9.5px] tracking-widest uppercase font-extrabold text-emerald-700 dark:text-emerald-400">
+-                Publishing Platform
++              <span className="hidden whitespace-nowrap font-hand text-base leading-none text-accent 2xl:block">
++                the village writing wall
+               </span>
+             </div>
+           </Link>
+ 
+           {/* Liquid Glass Navigation Pill Items */}
+-          <nav className="hidden md:flex items-center gap-2 bg-secondary/70 backdrop-blur-xl p-2 rounded-full border border-border/80 shadow-md">
++          <nav className="hidden md:flex items-center gap-1.5 bg-card/80 backdrop-blur-xl p-1.5 rounded-full border border-border shadow-sm">
+             {navItems.map((item) => {
+               const Icon = item.icon;
+               const isActive =
+@@ -424,7 +424,7 @@ export function Header() {
+                 >
+                   <Link
+                     href={item.href}
+-                    className={`relative px-5 py-2.5 rounded-full text-sm font-extrabold transition-all flex items-center gap-2 select-none ${
++                    className={`relative whitespace-nowrap px-4 py-2.5 rounded-full text-sm font-extrabold transition-all flex items-center gap-2 select-none ${
+                       isActive
+                         ? 'text-foreground'
+                         : 'text-muted-foreground hover:text-foreground hover:bg-secondary/90'
+@@ -436,7 +436,7 @@ export function Header() {
+                         className={`absolute inset-0 rounded-full border shadow-sm ${
+                           item.isSuper
+                             ? 'bg-amber-500/20 border-amber-500/50 text-amber-500'
+-                            : 'bg-card border-border/90'
++                            : 'bg-note-mint border-primary/20'
+                         }`}
+                         transition={{ type: 'spring', stiffness: 400, damping: 28 }}
+                       />
+@@ -461,7 +461,7 @@ export function Header() {
+           </nav>
+ 
+           {/* Right Header Controls */}
+-          <div className="hidden md:flex gap-4 items-center">{authLinks}</div>
++          <div className="hidden md:flex gap-2 items-center">{authLinks}</div>
+ 
+           {/* Mobile Menu Toggle Button */}
+           <motion.button
+@@ -526,9 +526,9 @@ export function Header() {
+                     <Link
+                       href="/auth/signup"
+                       onClick={() => setIsMenuOpen(false)}
+-                      className="px-4 py-3.5 text-center rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-500 text-white font-extrabold shadow-md"
++                      className="px-4 py-3.5 text-center rounded-2xl bg-accent text-accent-foreground font-extrabold shadow-md"
+                     >
+-                      Get Started
++                      Join the wall
+                     </Link>
+                   </div>
+                 )}
+diff --git a/components/ui/customButton.jsx b/components/ui/customButton.jsx
+index 4e18f90..8a78cd9 100644
+--- a/components/ui/customButton.jsx
++++ b/components/ui/customButton.jsx
+@@ -5,19 +5,19 @@ import Link from "next/link";
+ import { cn } from "@/lib/utils";
+ 
+ const variantStyles = {
+-  accent: "bg-accent text-primary-foreground hover:bg-accent/90 shadow-sm",
+-  green: "bg-green-600 text-white hover:bg-green-700 shadow-sm",
++  accent: "bg-accent text-accent-foreground hover:bg-accent/90 shadow-[0_10px_22px_-12px_rgba(249,115,22,0.8)]",
++  green: "bg-primary text-primary-foreground hover:bg-primary/90 shadow-[0_10px_22px_-12px_rgba(22,163,74,0.8)]",
+   destructive: "bg-destructive text-destructive-foreground hover:bg-destructive/90 shadow-sm",
+-  outline: "border border-input bg-background hover:bg-accent hover:text-accent-foreground",
+-  ghost: "hover:bg-accent hover:text-accent-foreground",
++  outline: "border-2 border-border bg-card hover:border-primary/40 hover:text-primary",
++  ghost: "hover:bg-secondary hover:text-foreground",
+   secondary: "bg-secondary text-secondary-foreground hover:bg-secondary/80",
+ };
+ 
+ const sizeStyles = {
+-  sm: "h-8 px-3 text-xs rounded-md",
+-  md: "h-10 px-5 py-2 text-sm font-semibold rounded-lg",
+-  lg: "h-12 px-7 text-base font-bold rounded-xl",
+-  icon: "h-10 w-10 p-2 justify-center rounded-lg",
++  sm: "h-8 px-3 text-xs font-bold rounded-xl",
++  md: "h-10 px-5 py-2 text-sm font-extrabold rounded-2xl",
++  lg: "h-12 px-7 text-base font-extrabold rounded-2xl",
++  icon: "h-10 w-10 p-2 justify-center rounded-2xl",
+ };
+ 
+ export default function Button({
+diff --git a/lib/board.js b/lib/board.js
+new file mode 100644
+index 0000000..6609be0
+--- /dev/null
++++ b/lib/board.js
+@@ -0,0 +1,56 @@
++import { Globe2, Lightbulb, Palette, Rocket, HeartHandshake, Camera, PenLine } from 'lucide-react';
++
++export const NOTE_STYLES = [
++  { bg: 'bg-note-mint', tape: 'bg-primary/60', chip: 'bg-primary text-primary-foreground' },
++  { bg: 'bg-note-peach', tape: 'bg-accent/60', chip: 'bg-accent text-accent-foreground' },
++  { bg: 'bg-note-butter', tape: 'bg-amber-400/70', chip: 'bg-accent text-accent-foreground' },
++  { bg: 'bg-note-sky', tape: 'bg-sky-400/60', chip: 'bg-primary text-primary-foreground' },
++  { bg: 'bg-note-lilac', tape: 'bg-violet-400/60', chip: 'bg-accent text-accent-foreground' },
++  { bg: 'bg-note-white', tape: 'bg-primary/50', chip: 'bg-primary text-primary-foreground' },
++];
++
++export function hashString(value = '') {
++  let h = 0;
++  for (let i = 0; i < value.length; i++) {
++    h = (h * 31 + value.charCodeAt(i)) | 0;
++  }
++  return Math.abs(h);
++}
++
++export function noteStyleFor(id) {
++  return NOTE_STYLES[hashString(String(id)) % NOTE_STYLES.length];
++}
++
++export function noteTiltFor(id) {
++  const tilts = [-1.6, -0.8, 0, 0.8, 1.4];
++  return tilts[hashString(`${id}-tilt`) % tilts.length];
++}
++
++export const CATEGORY_META = {
++  All: { icon: Globe2, label: 'Everything', tone: 'text-primary' },
++  Technology: { icon: Lightbulb, label: 'Tech & Ideas', tone: 'text-amber-500' },
++  Design: { icon: Palette, label: 'Design Lab', tone: 'text-violet-500' },
++  Business: { icon: Rocket, label: 'Young Founders', tone: 'text-accent' },
++  Personal: { icon: HeartHandshake, label: 'Life at ASYV', tone: 'text-rose-500' },
++  Photography: { icon: Camera, label: 'Through the Lens', tone: 'text-sky-500' },
++};
++
++export const DEFAULT_CATEGORY = { icon: PenLine, label: 'Notes', tone: 'text-primary' };
++
++export function categoryMeta(cat) {
++  return CATEGORY_META[cat] || { ...DEFAULT_CATEGORY, label: cat || DEFAULT_CATEGORY.label };
++}
++
++export function formatShortDate(d) {
++  return new Date(d).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
++}
++
++export const boardContainer = {
++  hidden: {},
++  show: { transition: { staggerChildren: 0.06, delayChildren: 0.05 } },
++};
++
++export const boardItem = {
++  hidden: { opacity: 0, y: 24, scale: 0.96 },
++  show: { opacity: 1, y: 0, scale: 1, transition: { type: 'spring', stiffness: 260, damping: 24 } },
++};
+-- 
+2.34.1
+

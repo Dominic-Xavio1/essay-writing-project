@@ -5,19 +5,19 @@ import Link from "next/link";
 import { cn } from "@/lib/utils";
 
 const variantStyles = {
-  accent: "bg-accent text-primary-foreground hover:bg-accent/90 shadow-sm",
-  green: "bg-green-600 text-white hover:bg-green-700 shadow-sm",
+  accent: "bg-accent text-accent-foreground hover:bg-accent/90 shadow-[0_10px_22px_-12px_rgba(249,115,22,0.8)]",
+  green: "bg-primary text-primary-foreground hover:bg-primary/90 shadow-[0_10px_22px_-12px_rgba(22,163,74,0.8)]",
   destructive: "bg-destructive text-destructive-foreground hover:bg-destructive/90 shadow-sm",
-  outline: "border border-input bg-background hover:bg-accent hover:text-accent-foreground",
-  ghost: "hover:bg-accent hover:text-accent-foreground",
+  outline: "border-2 border-border bg-card hover:border-primary/40 hover:text-primary",
+  ghost: "hover:bg-secondary hover:text-foreground",
   secondary: "bg-secondary text-secondary-foreground hover:bg-secondary/80",
 };
 
 const sizeStyles = {
-  sm: "h-8 px-3 text-xs rounded-md",
-  md: "h-10 px-5 py-2 text-sm font-semibold rounded-lg",
-  lg: "h-12 px-7 text-base font-bold rounded-xl",
-  icon: "h-10 w-10 p-2 justify-center rounded-lg",
+  sm: "h-8 px-3 text-xs font-bold rounded-xl",
+  md: "h-10 px-5 py-2 text-sm font-extrabold rounded-2xl",
+  lg: "h-12 px-7 text-base font-extrabold rounded-2xl",
+  icon: "h-10 w-10 p-2 justify-center rounded-2xl",
 };
 
 export default function Button({

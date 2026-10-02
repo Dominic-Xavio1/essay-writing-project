@@ -1,86 +1,104 @@
-@import url('https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400..700;1,400..700&family=Plus+Jakarta+Sans:ital,wght@0,300..800;1,300..800&family=Playfair+Display:ital,wght@0,400..900;1,400..900&display=swap');
-
 @import 'tailwindcss';
 @import 'tw-animate-css';
 
 @custom-variant dark (&:is(.dark *));
 
 :root {
-  /* Warm Editorial & Calm Atmosphere Theme */
-  --background: #faf9f6;
-  --foreground: #1c1d1c;
+  /* ASYV Canvas theme: vibrant green + energetic orange on soft paper */
+  --background: #fbfaf5;
+  --foreground: #1a2118;
   --card: #ffffff;
-  --card-foreground: #1c1d1c;
+  --card-foreground: #1a2118;
   --popover: #ffffff;
-  --popover-foreground: #1c1d1c;
-  --primary: #0f382c;
+  --popover-foreground: #1a2118;
+  --primary: #16a34a;
   --primary-foreground: #ffffff;
-  --secondary: #f3f2ee;
-  --secondary-foreground: #1c1d1c;
-  --muted: #e8e6df;
-  --muted-foreground: #6b6a65;
-  --accent: #d4af37;
-  --accent-foreground: #0f382c;
-  --destructive: #d9383a;
+  --secondary: #f3f2ea;
+  --secondary-foreground: #1a2118;
+  --muted: #ebe9df;
+  --muted-foreground: #6b6f66;
+  --accent: #f97316;
+  --accent-foreground: #ffffff;
+  --destructive: #e11d48;
   --destructive-foreground: #ffffff;
-  --border: #e6e4dc;
-  --input: #f0eee7;
-  --ring: #0f382c;
-  --chart-1: #0f382c;
-  --chart-2: #1b4d3e;
-  --chart-3: #2d7a63;
-  --chart-4: #d4af37;
-  --chart-5: #e6c86e;
-  --radius: 0.75rem;
-  --sidebar: #faf9f6;
-  --sidebar-foreground: #1c1d1c;
-  --sidebar-primary: #0f382c;
+  --border: #e7e4d8;
+  --input: #f1efe6;
+  --ring: #16a34a;
+  --chart-1: #16a34a;
+  --chart-2: #4ade80;
+  --chart-3: #f97316;
+  --chart-4: #fdba74;
+  --chart-5: #facc15;
+  --radius: 1rem;
+  --sidebar: #fbfaf5;
+  --sidebar-foreground: #1a2118;
+  --sidebar-primary: #16a34a;
   --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #f3f2ee;
-  --sidebar-accent-foreground: #0f382c;
-  --sidebar-border: #e6e4dc;
-  --sidebar-ring: #0f382c;
+  --sidebar-accent: #f3f2ea;
+  --sidebar-accent-foreground: #16a34a;
+  --sidebar-border: #e7e4d8;
+  --sidebar-ring: #16a34a;
+
+  /* Board grid & sticky-note pastels */
+  --grid-dot: rgba(26, 33, 24, 0.09);
+  --note-mint: #e3f8e9;
+  --note-peach: #ffeadb;
+  --note-butter: #fff6cc;
+  --note-sky: #e2f1fd;
+  --note-lilac: #efe7fd;
+  --note-white: #ffffff;
 }
 
 .dark {
-  --background: #121312;
-  --foreground: #f4f3ee;
-  --card: #1b1c1b;
-  --card-foreground: #f4f3ee;
-  --popover: #1b1c1b;
-  --popover-foreground: #f4f3ee;
-  --primary: #2d7a63;
-  --primary-foreground: #ffffff;
-  --secondary: #242624;
-  --secondary-foreground: #f4f3ee;
-  --muted: #2d302d;
-  --muted-foreground: #a3a199;
-  --accent: #e6c86e;
-  --accent-foreground: #121312;
-  --destructive: #e65557;
+  --background: #11140f;
+  --foreground: #f2f4ee;
+  --card: #1a1e17;
+  --card-foreground: #f2f4ee;
+  --popover: #1a1e17;
+  --popover-foreground: #f2f4ee;
+  --primary: #22c55e;
+  --primary-foreground: #06200f;
+  --secondary: #22271f;
+  --secondary-foreground: #f2f4ee;
+  --muted: #2a3026;
+  --muted-foreground: #a2a89b;
+  --accent: #fb923c;
+  --accent-foreground: #1f0d02;
+  --destructive: #f43f5e;
   --destructive-foreground: #ffffff;
-  --border: #2d302d;
-  --input: #242624;
-  --ring: #2d7a63;
-  --chart-1: #2d7a63;
-  --chart-2: #1b4d3e;
-  --chart-3: #0f382c;
-  --chart-4: #e6c86e;
-  --chart-5: #d4af37;
-  --sidebar: #1b1c1b;
-  --sidebar-foreground: #f4f3ee;
-  --sidebar-primary: #2d7a63;
-  --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #242624;
-  --sidebar-accent-foreground: #f4f3ee;
-  --sidebar-border: #2d302d;
-  --sidebar-ring: #2d7a63;
+  --border: #2a3026;
+  --input: #22271f;
+  --ring: #22c55e;
+  --chart-1: #22c55e;
+  --chart-2: #15803d;
+  --chart-3: #fb923c;
+  --chart-4: #c2410c;
+  --chart-5: #facc15;
+  --sidebar: #1a1e17;
+  --sidebar-foreground: #f2f4ee;
+  --sidebar-primary: #22c55e;
+  --sidebar-primary-foreground: #06200f;
+  --sidebar-accent: #22271f;
+  --sidebar-accent-foreground: #f2f4ee;
+  --sidebar-border: #2a3026;
+  --sidebar-ring: #22c55e;
+
+  --grid-dot: rgba(242, 244, 238, 0.08);
+  --note-mint: #16301f;
+  --note-peach: #3a2416;
+  --note-butter: #35301a;
+  --note-sky: #172a3a;
+  --note-lilac: #29203a;
+  --note-white: #1a1e17;
 }
 
 @theme inline {
-  --font-sans: 'Plus Jakarta Sans', 'Geist', system-ui, sans-serif;
-  --font-serif: 'Lora', 'Playfair Display', Georgia, serif;
-  --font-mono: 'Geist Mono', monospace;
+  --font-sans: var(--font-body), 'Nunito', system-ui, sans-serif;
+  --font-display: var(--font-heading), 'Bricolage Grotesque', var(--font-body), system-ui, sans-serif;
+  /* `font-serif` is kept as an alias so existing headings pick up the new display face */
+  --font-serif: var(--font-heading), 'Bricolage Grotesque', var(--font-body), system-ui, sans-serif;
+  --font-hand: var(--font-handwritten), 'Caveat', cursive;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
@@ -105,8 +123,14 @@
   --color-chart-3: var(--chart-3);
   --color-chart-4: var(--chart-4);
   --color-chart-5: var(--chart-5);
-  --radius-sm: calc(var(--radius) - 4px);
-  --radius-md: calc(var(--radius) - 2px);
+  --color-note-mint: var(--note-mint);
+  --color-note-peach: var(--note-peach);
+  --color-note-butter: var(--note-butter);
+  --color-note-sky: var(--note-sky);
+  --color-note-lilac: var(--note-lilac);
+  --color-note-white: var(--note-white);
+  --radius-sm: calc(var(--radius) - 6px);
+  --radius-md: calc(var(--radius) - 4px);
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
   --color-sidebar: var(--sidebar);
@@ -117,6 +141,9 @@
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
+
+  --shadow-float: 0 18px 40px -18px rgba(26, 33, 24, 0.28), 0 6px 14px -8px rgba(26, 33, 24, 0.12);
+  --shadow-note: 0 1px 0 rgba(26, 33, 24, 0.04), 0 2px 6px -2px rgba(26, 33, 24, 0.08);
 }
 
 @layer base {
@@ -124,14 +151,57 @@
     @apply border-border outline-ring/50;
   }
   body {
-    @apply bg-background text-foreground font-sans antialiased selection:bg-primary/20 selection:text-primary;
+    @apply bg-background text-foreground font-sans antialiased selection:bg-accent/25 selection:text-foreground;
   }
   h1, h2, h3, .font-serif-heading {
-    font-family: var(--font-serif);
+    font-family: var(--font-display);
+    letter-spacing: -0.02em;
   }
 }
 
-/* Custom Editorial Micro-Animations */
+/* Padlet-style canvas backgrounds */
+@utility bg-canvas {
+  background-color: var(--background);
+  background-image: radial-gradient(var(--grid-dot) 1.2px, transparent 1.2px);
+  background-size: 22px 22px;
+}
+
+@utility bg-canvas-lines {
+  background-color: var(--background);
+  background-image:
+    linear-gradient(var(--grid-dot) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid-dot) 1px, transparent 1px);
+  background-size: 28px 28px;
+}
+
+/* Lift-off-the-desk hover */
+@utility lift {
+  transition: transform 0.35s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.35s cubic-bezier(0.22, 1, 0.36, 1);
+  box-shadow: var(--shadow-note);
+  &:hover {
+    transform: translateY(-4px) scale(1.02);
+    box-shadow: var(--shadow-float);
+  }
+}
+
+/* Washi-tape strip used on sticky notes */
+@utility tape {
+  position: absolute;
+  top: -10px;
+  left: 50%;
+  width: 72px;
+  height: 20px;
+  transform: translateX(-50%) rotate(-3deg);
+  border-radius: 3px;
+  opacity: 0.85;
+  background-image: repeating-linear-gradient(
+    45deg,
+    rgba(255, 255, 255, 0.35) 0 6px,
+    transparent 6px 12px
+  );
+}
+
+/* Micro-animations */
 @keyframes floatUpFade {
   0% {
     opacity: 1;
@@ -145,6 +215,15 @@
 
 .animate-float-particle {
   animation: floatUpFade 0.65s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes bob {
+  0%, 100% { transform: translateY(0) rotate(var(--bob-rotate, 0deg)); }
+  50% { transform: translateY(-8px) rotate(var(--bob-rotate, 0deg)); }
+}
+
+.animate-bob {
+  animation: bob 5s ease-in-out infinite;
 }
 
 @keyframes skeletonShimmer {
@@ -162,7 +241,24 @@
   animation: skeletonShimmer 1.5s infinite;
 }
 
-/* Custom Scrollbar for Fixed Posts Container */
+/* Editor content */
+.editor-surface h1 { font-size: 2rem; font-weight: 800; margin: 1.2rem 0 0.6rem; }
+.editor-surface h2 { font-size: 1.6rem; font-weight: 800; margin: 1rem 0 0.5rem; }
+.editor-surface h3 { font-size: 1.3rem; font-weight: 700; margin: 0.9rem 0 0.4rem; }
+.editor-surface p { margin: 0.5rem 0; }
+.editor-surface ul { list-style: disc; padding-left: 1.5rem; }
+.editor-surface ol { list-style: decimal; padding-left: 1.5rem; }
+.editor-surface blockquote {
+  border-left: 4px solid var(--accent);
+  background: var(--note-peach);
+  padding: 0.75rem 1rem;
+  border-radius: 0 1rem 1rem 0;
+  margin: 1rem 0;
+  font-style: italic;
+}
+.editor-surface a { color: var(--primary); text-decoration: underline; text-underline-offset: 3px; }
+
+/* Custom Scrollbar */
 .custom-scrollbar::-webkit-scrollbar {
   width: 6px;
 }
@@ -182,3 +278,13 @@
   scrollbar-color: var(--border) transparent;
 }
 
+@media (prefers-reduced-motion: reduce) {
+  .animate-bob, .lift { animation: none !important; transition: none !important; }
+}
+
+@utility no-scrollbar {
+  scrollbar-width: none;
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}

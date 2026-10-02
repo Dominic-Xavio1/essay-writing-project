@@ -1,86 +1,51 @@
 'use client';
 
 import Link from 'next/link';
+import Image from 'next/image';
+import { Compass, PenLine, LayoutDashboard, Heart } from 'lucide-react';
+
+const links = [
+  { href: '/posts', label: 'Explore the wall', icon: Compass },
+  { href: '/create', label: 'Pin a note', icon: PenLine },
+  { href: '/dashboard', label: 'My board', icon: LayoutDashboard },
+];
 
 export function Footer() {
   return (
-    <footer className="bg-secondary border-t border-border">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-8 mb-8">
-          {/* Brand */}
-          <div>
-            <h3 className="font-bold text-lg mb-4">EssayHub</h3>
-            <p className="text-sm text-muted-foreground">
-              A platform for sharing thoughtful essays and engaging with writers from around the world.
+    <footer className="border-t border-border bg-white">
+      <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
+        <div className="flex flex-col gap-8 md:flex-row md:items-start md:justify-between">
+          <div className="max-w-sm">
+            <Link href="/" className="flex items-center gap-3">
+              <Image src="/agahozo.png" alt="ASYV" width={40} height={40} className="rounded-xl" />
+              <span className="font-display text-xl font-extrabold text-foreground">
+                ASYV Writing
+              </span>
+            </Link>
+            <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
+              The creative wall of Agahozo-Shalom Youth Village — where students pin essays, poems and ideas, and lift
+              each other up.
             </p>
           </div>
 
-          {/* Product */}
-          <div>
-            <h4 className="font-semibold mb-4 text-foreground">Product</h4>
-            <div className="space-y-2">
-              <Link href="/posts" className="text-sm text-muted-foreground hover:text-foreground transition-colors block">
-                Explore Essays
+          <nav aria-label="Footer navigation" className="flex flex-wrap gap-x-6 gap-y-3">
+            {links.map(({ href, label, icon: Icon }) => (
+              <Link
+                key={href}
+                href={href}
+                className="inline-flex items-center gap-2 py-1 text-sm font-semibold text-muted-foreground transition-colors hover:text-primary"
+              >
+                <Icon size={16} /> {label}
               </Link>
-              <Link href="/create" className="text-sm text-muted-foreground hover:text-foreground transition-colors block">
-                Write Essay
-              </Link>
-              <Link href="#" className="text-sm text-muted-foreground hover:text-foreground transition-colors block">
-                Pricing
-              </Link>
-            </div>
-          </div>
-
-          {/* Community */}
-          <div>
-            <h4 className="font-semibold mb-4 text-foreground">Community</h4>
-            <div className="space-y-2">
-              <Link href="#" className="text-sm text-muted-foreground hover:text-foreground transition-colors block">
-                Blog
-              </Link>
-              <Link href="#" className="text-sm text-muted-foreground hover:text-foreground transition-colors block">
-                Forums
-              </Link>
-              <Link href="#" className="text-sm text-muted-foreground hover:text-foreground transition-colors block">
-                Events
-              </Link>
-            </div>
-          </div>
-
-          {/* Legal */}
-          <div>
-            <h4 className="font-semibold mb-4 text-foreground">Legal</h4>
-            <div className="space-y-2">
-              <Link href="#" className="text-sm text-muted-foreground hover:text-foreground transition-colors block">
-                Privacy
-              </Link>
-              <Link href="#" className="text-sm text-muted-foreground hover:text-foreground transition-colors block">
-                Terms
-              </Link>
-              <Link href="#" className="text-sm text-muted-foreground hover:text-foreground transition-colors block">
-                Contact
-              </Link>
-            </div>
-          </div>
+            ))}
+          </nav>
         </div>
 
-        <div className="border-t border-border pt-8">
-          <div className="flex flex-col md:flex-row justify-between items-center gap-4">
-            <p className="text-sm text-muted-foreground">
-              © 2026 EssayHub. All rights reserved.
-            </p>
-            <div className="flex gap-4">
-              <a href="#" className="text-muted-foreground hover:text-foreground transition-colors">
-                <span className="text-sm">Twitter</span>
-              </a>
-              <a href="#" className="text-muted-foreground hover:text-foreground transition-colors">
-                <span className="text-sm">LinkedIn</span>
-              </a>
-              <a href="#" className="text-muted-foreground hover:text-foreground transition-colors">
-                <span className="text-sm">GitHub</span>
-              </a>
-            </div>
-          </div>
+        <div className="mt-8 flex flex-col items-center justify-between gap-3 border-t border-border pt-5 text-xs font-medium text-muted-foreground sm:flex-row">
+          <p>© {new Date().getFullYear()} ASYV Writing · Agahozo-Shalom Youth Village, Rwanda</p>
+          <p className="inline-flex items-center gap-1.5">
+            Made with <Heart size={13} className="text-primary" /> by ASYV students
+          </p>
         </div>
       </div>
     </footer>

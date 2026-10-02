@@ -1,256 +1,340 @@
 'use client';
 
+import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { Heart, BookMarked, TrendingUp, Share2, MessageSquare, Sparkles } from 'lucide-react';
-import Image from 'next/image';
-import Button from '@/components/ui/customButton';
-import { Header } from '@/components/shared/Header';
 import { motion } from 'framer-motion';
+import { ArrowRight, Flame, PenLine, Sparkles, Users, Heart, StickyNote, Compass, Pin } from 'lucide-react';
+import { Header } from '@/components/shared/Header';
+import { Footer } from '@/components/shared/Footer';
+import { EssayCard, EssayCardSkeleton } from '@/components/board/EssayCard';
+import { MasonryBoard } from '@/components/board/MasonryBoard';
+import { api } from '@/lib/api-client';
+import { categories } from '@/lib/posts';
+import { categoryMeta, boardContainer, boardItem } from '@/lib/board';
+import { toast } from 'sonner';
+
+const PROMPTS = [
+  'Describe a moment at ASYV that changed how you see yourself.',
+  'Write a letter to the student you were on your first day in the village.',
+  'What does "Tikkun Olam" — repairing the world — mean in your daily life?',
+  'Pick one sound from the village and turn it into a short story.',
+];
 
 export default function Home() {
+  const [user, setUser] = useState(null);
+  const [trending, setTrending] = useState([]);
+  const [recent, setRecent] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [promptIndex, setPromptIndex] = useState(0);
+
+  useEffect(() => {
+    setPromptIndex(new Date().getDate() % PROMPTS.length);
+    api.getMe().then((d) => setUser(d.user)).catch(() => {});
+    Promise.all([api.getPosts({ sort: 'trending' }), api.getPosts({ sort: 'recent' })])
+      .then(([t, r]) => {
+        setTrending(t.posts || []);
+        setRecent(r.posts || []);
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
+
+  const stats = useMemo(() => {
+    const writers = new Set(recent.map((p) => p.author?.id).filter(Boolean)).size;
+    const hearts = recent.reduce((sum, p) => sum + (p.likes || 0), 0);
+    return { notes: recent.length, writers, hearts };
+  }, [recent]);
+
+  const categoryCounts = useMemo(() => {
+    const counts = {};
+    recent.forEach((p) => {
+      counts[p.category] = (counts[p.category] || 0) + 1;
+    });
+    return counts;
+  }, [recent]);
+
+  const handleLike = async (postId, e) => {
+    e?.preventDefault();
+    e?.stopPropagation();
+    const flip = (list) =>
+      list.map((p) =>
+        p.id === postId ? { ...p, liked: !p.liked, likes: Math.max(0, (p.likes || 0) + (p.liked ? -1 : 1)) } : p
+      );
+    setTrending(flip);
+    setRecent(flip);
+    try {
+      await api.likePost(postId);
+    } catch {
+      setTrending(flip);
+      setRecent(flip);
+      toast.error('Sign in to send some love 💚');
+    }
+  };
+
+  const firstName = user?.name?.split(' ')[0];
+  const heroNotes = trending.slice(0, 3);
+
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-white">
       <Header />
 
-      {/* Hero Section */}
-      <section className="bg-secondary/50 py-16 sm:py-24">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-16 items-center">
-            {/* Left Content */}
-            <div>
-              <div className="relative group">
-                <motion.div
-                  initial={{ opacity: 0.8, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.6, delay: 0.2 }}
-                  className="text-5xl sm:text-6xl font-bold text-foreground leading-tight mb-6 relative overflow-hidden"
+      <section>
+        <div className="mx-auto max-w-7xl px-4 pt-14 pb-20 sm:px-6 lg:px-8 lg:pt-20 lg:pb-24">
+          <div className="grid grid-cols-1 items-start gap-14 lg:grid-cols-[1.05fr_1fr] lg:gap-16">
+            <motion.div variants={boardContainer} initial="hidden" animate="show" className="lg:pt-8">
+              <motion.div variants={boardItem} className="mb-7 flex items-center gap-3">
+                <NoteBuddy />
+                <div>
+                  <p className="text-xs font-extrabold uppercase text-primary">ASYV Writing</p>
+                  <p className="mt-1 text-sm font-medium text-muted-foreground">
+                    {firstName ? `Muraho, ${firstName}` : 'Stories from the village'}
+                  </p>
+                </div>
+              </motion.div>
+
+              <motion.h1
+                variants={boardItem}
+                className="max-w-xl font-display text-4xl font-extrabold leading-[1.06] text-foreground sm:text-5xl lg:text-6xl"
+              >
+                Pin your <span className="font-hand text-[1.16em] font-semibold text-primary">story</span>
+                <br />to the village wall.
+              </motion.h1>
+
+              <motion.p variants={boardItem} className="mt-7 max-w-lg text-base leading-7 text-muted-foreground sm:text-lg sm:leading-8">
+                A shared wall for Agahozo-Shalom students to leave essays, poems and big ideas. Read a friend&apos;s note,
+                leave a reaction, or add your own voice.
+              </motion.p>
+
+              <motion.div variants={boardItem} className="mt-9 flex flex-wrap items-center gap-3">
+                <Link
+                  href="/create"
+                  className="group inline-flex items-center gap-2 rounded-xl bg-primary px-5 py-3 text-sm font-bold text-primary-foreground transition-colors hover:bg-primary/90"
                 >
-                  <span className="relative z-10">Publishing is king</span> <span className="">in the digital age</span>
-                  <motion.div
-                    initial={{ x: "-100%" }}
-                    animate={{ x: "100%" }}
-                    transition={{
-                      duration: 2,
-                      repeat: Infinity,
-                      repeatDelay: 0.05,
-                      ease: "easeInOut"
-                    }}
-                    className="absolute inset-0 z-20 pointer-events-none bg-gradient-to-r from-transparent via-white/80 to-transparent mix-blend-screen"
-                  />
+                  <PenLine size={17} className="transition-transform group-hover:-rotate-12" />
+                  Start a note
+                </Link>
+                <Link
+                  href="/posts"
+                  className="group inline-flex items-center gap-2 rounded-xl border border-border bg-white px-5 py-3 text-sm font-bold text-foreground transition-colors hover:border-primary hover:text-primary"
+                >
+                  <Compass size={17} />
+                  Explore the wall
+                  <ArrowRight size={16} className="transition-transform group-hover:translate-x-1" />
+                </Link>
+              </motion.div>
+
+              <motion.div variants={boardItem} className="mt-12 max-w-xl">
+                <p className="mb-3 text-[10px] font-extrabold uppercase text-muted-foreground">A little life on the wall</p>
+                <div className="grid grid-cols-3 divide-x divide-border border-y border-border py-4">
+                {[
+                  { icon: StickyNote, value: stats.notes, label: 'notes pinned' },
+                  { icon: Users, value: stats.writers, label: 'student writers' },
+                  { icon: Heart, value: stats.hearts, label: 'hearts given' },
+                ].map(({ icon: Icon, value, label }, index) => (
+                  <div key={label} className={`flex items-center gap-3 px-3 first:pl-0 sm:px-5 ${index === 2 ? 'pr-0' : ''}`}>
+                    <Icon size={17} strokeWidth={1.8} className="shrink-0 text-primary" aria-hidden />
+                    <div className="min-w-0">
+                      <p className="font-display text-xl font-extrabold leading-none text-foreground sm:text-2xl">{loading ? '–' : value}</p>
+                      <p className="mt-1.5 text-[10px] font-bold leading-tight text-muted-foreground sm:text-xs">{label}</p>
+                    </div>
+                  </div>
+                ))}
+                </div>
+              </motion.div>
+            </motion.div>
+
+            {/* Trending cluster */}
+            <div className="relative">
+              <div className="mb-5 flex items-center gap-2">
+                <span className="inline-flex items-center gap-1.5 text-xs font-bold text-foreground">
+                  <Flame size={14} className="text-primary" /> Trending at ASYV
+                </span>
+                <span className="text-xs text-muted-foreground">/ this week</span>
+              </div>
+              {loading ? (
+                <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+                  <EssayCardSkeleton tall />
+                  <EssayCardSkeleton />
+                </div>
+              ) : heroNotes.length === 0 ? (
+                <EmptyWall />
+              ) : (
+                <motion.div
+                  variants={boardContainer}
+                  initial="hidden"
+                  animate="show"
+                  className="grid grid-cols-1 gap-6 sm:grid-cols-2"
+                >
+                  <div className="space-y-6 sm:pt-6">
+                    {heroNotes[0] && <EssayCard post={heroNotes[0]} onLike={handleLike} monochrome />}
+                  </div>
+                  <div className="space-y-6">
+                    {heroNotes.slice(1).map((p) => (
+                      <EssayCard key={p.id} post={{ ...p, featured_image: '' }} onLike={handleLike} monochrome />
+                    ))}
+                    <PromptNote prompt={PROMPTS[promptIndex]} />
+                  </div>
                 </motion.div>
-              </div>
-
-              <p className="text-lg text-foreground/70 leading-relaxed mb-8 max-w-lg">
-                EssayHub empowers writers to share their voice with the world. Craft stunning essays with our advanced editor, reach engaged readers, and build your writing legacy.
-              </p>
-
-              <div className="flex flex-col sm:flex-row gap-4">
-                <Button variant="green" size="lg" href="/create">
-                  Start Writing
-                </Button>
-                <Button variant="accent" size="lg" href="/posts">
-                  Explore Now
-                </Button>
-              </div>
+              )}
             </div>
+          </div>
+        </div>
+      </section>
 
-            {/* Right - Visual Preview */}
-            <div className="flex items-center justify-center">
-              <div className="relative w-full max-w-xl">
-                <div className="bg-white rounded-lg shadow-lg overflow-hidden">
-                  <div className="relative h-88 w-[700px]">
-                    <Image 
-                      src="/club.webp" 
-                      alt="Essay Preview" 
-                      fill  
-                      sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
-                      className="object-cover object-top"
-                      priority
-                    />
-                  </div>
-                  <div className="p-6">
-                    <p className="text-xs font-semibold text-accent/80 mb-2 uppercase tracking-wide">Featured Essay</p>
-                    <h3 className="text-xl font-bold text-foreground mb-2 line-clamp-2">
-                      The Future of Remote Work
-                    </h3>
-                    <p className="text-sm text-foreground/70 mb-4 line-clamp-2">
-                      Exploring how distributed teams are reshaping the landscape of modern work and collaboration.
-                    </p>
-                    <div className="flex items-center justify-between pt-4 border-t border-border">
-                      <span className="text-xs text-foreground/60">8 min read</span>
-                      <div className="flex items-center gap-3">
-                        <Heart className="w-4 h-4 text-foreground/40 hover:text-accent cursor-pointer transition-colors" />
-                        <Share2 className="w-4 h-4 text-foreground/40 hover:text-primary cursor-pointer transition-colors" />
-                      </div>
+      {/* Creative boards */}
+      <section className="mx-auto max-w-7xl px-4 pt-8 pb-20 sm:px-6 lg:px-8">
+        <SectionTitle kicker="Boards" title="Pick a board, find your people" href="/posts" cta="All boards" />
+        <motion.div
+          variants={boardContainer}
+          initial="hidden"
+          whileInView="show"
+          viewport={{ once: true, margin: '-60px' }}
+          className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5"
+        >
+          {categories
+            .filter((c) => c !== 'All')
+            .map((cat, i) => {
+              const meta = categoryMeta(cat);
+              const Icon = meta.icon;
+              return (
+                <motion.div key={cat} variants={boardItem} whileHover={{ y: -3 }}>
+                  <Link
+                    href={`/posts?category=${encodeURIComponent(cat)}`}
+                    className="relative flex h-36 flex-col justify-between rounded-2xl border border-border bg-white p-4 transition-colors hover:border-primary/50"
+                  >
+                    <span className="flex items-center justify-between">
+                      <span className="grid h-10 w-10 place-items-center rounded-xl bg-primary/5 text-primary">
+                        <Icon size={20} strokeWidth={1.8} />
+                      </span>
+                      <span className="font-mono text-[10px] text-muted-foreground">0{i + 1}</span>
+                    </span>
+                    <div>
+                      <p className="font-display text-base font-extrabold leading-tight text-foreground">{meta.label}</p>
+                      <p className="text-xs font-bold text-muted-foreground">
+                        {categoryCounts[cat] || 0} {categoryCounts[cat] === 1 ? 'note' : 'notes'}
+                      </p>
                     </div>
-                  </div>
-                </div>
-
-                <div className="absolute -bottom-6 -right-6 bg-white rounded-lg p-4 shadow-lg hidden sm:block">
-                  <div className="flex items-center gap-3">
-                    <TrendingUp className="w-5 h-5 text-accent" />
-                    <div className="text-sm">
-                      <p className="font-semibold text-foreground">50K Essays</p>
-                      <p className="text-foreground/60 text-xs">Published this month</p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
+                  </Link>
+                </motion.div>
+              );
+            })}
+        </motion.div>
       </section>
 
-      {/* Features Section */}
-      <section id="features" className="py-20 sm:py-32 border-t border-border">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="mb-16 sm:mb-20">
-            <p className="text-sm font-semibold text-accent/80 uppercase tracking-widest mb-4">CORE FEATURES</p>
-            <h2 className="text-4xl sm:text-5xl font-bold text-foreground mb-4">
-              Everything you need to write
-            </h2>
-            <p className="text-lg text-foreground/70 max-w-2xl">
-              A complete suite of tools designed for writers who want to create, publish, and succeed.
-            </p>
+      {/* Fresh notes masonry */}
+      <section className="mx-auto max-w-7xl px-4 pt-8 pb-24 sm:px-6 lg:px-8">
+        <SectionTitle kicker="Fresh ink" title="Just pinned by students" href="/posts" cta="Open the full wall" />
+        {loading ? (
+          <div className="columns-1 gap-5 sm:columns-2 lg:columns-3 xl:columns-4">
+            {[1, 2, 3, 4].map((n) => (
+              <EssayCardSkeleton key={n} tall={n % 2 === 0} />
+            ))}
           </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 lg:gap-10">
-            <div className="flex gap-4 px-2 py-4 bg-white rounded-lg border border-border hover:shadow-lg transition-shadow">
-              <Image src="/giphy2.gif" alt="Editor Icon" width={150} height={100} className="object-cover border border-border rounded-lg" />
-              <div className="text-foreground/70 text-sm leading-relaxed">
-                <h3 className="text-xl font-bold text-foreground">Rich Text Engine</h3>
-                <p>Break free from boring text! Unleash total creative control over your words with lightning-fast bolding, sharp italics, hyper-vibrant colors, and explosive formatting.</p>  
-              </div>
-            </div>
-
-            <div className="flex gap-4 px-2 py-4 bg-white rounded-lg border border-border hover:shadow-lg transition-shadow">
-              <Image src="/giphy1.gif" alt="Editor Icon" width={150} height={100} className="object-cover border border-border rounded-lg" />
-              <div className="text-foreground/70 text-sm leading-relaxed">
-                <h3 className="text-xl font-bold text-foreground">Community Engagement</h3>
-                <p>Connect with readers, build a loyal audience, and foster meaningful discussions around your work.</p>  
-              </div>
-            </div>
-
-            <div className="flex gap-4 px-2 py-4 bg-white rounded-lg border border-border hover:shadow-lg transition-shadow">
-              <Image src="/giphy3.gif" alt="Editor Icon" width={150} height={100} className="object-cover border border-border rounded-lg" />
-              <div className="text-foreground/70 text-sm leading-relaxed">
-                <h3 className="text-xl font-bold text-foreground">Analytics Dashboard</h3>
-                <p> Track reads, engagement, and audience growth with real-time insights into your essay performance.</p>  
-              </div>
-            </div>
-          </div>
-        </div>
+        ) : recent.length === 0 ? (
+          <EmptyWall />
+        ) : (
+          <MasonryBoard>
+            {recent.slice(0, 8).map((post) => (
+              <EssayCard key={post.id} post={post} onLike={handleLike} monochrome />
+            ))}
+          </MasonryBoard>
+        )}
       </section>
 
-      {/* About Section */}
-      <section id="about" className="py-20 sm:py-32 bg-secondary/30 border-t border-border">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-16 items-center">
-            <Image
-              src="/giphy.gif"
-              alt="Reading Habit"
-              width={600}
-              height={400}
-              className="rounded-lg shadow-lg object-cover object-top"
-            />
-
-            <div className="order-1 lg:order-2">
-              <p className="text-sm font-semibold text-accent/80 uppercase tracking-widest mb-4">ABOUT</p>
-              <h2 className="text-4xl sm:text-5xl font-bold text-foreground mb-6">
-                Built for writers, by writers
-              </h2>
-              <p className="text-lg text-foreground/70 leading-relaxed mb-6">
-                EssayHub was created by writers who experienced the limitations of existing platforms. We built the editor we always wanted - powerful yet intuitive, with all the formatting tools you need without unnecessary complexity.
+      {/* CTA */}
+      <section className="mx-auto max-w-7xl px-4 pt-4 pb-20 sm:px-6 lg:px-8">
+        <div className="flex flex-col items-start justify-between gap-6 rounded-2xl border border-border bg-white px-6 py-9 sm:px-10 md:flex-row md:items-center sm:py-11">
+            <div>
+              <p className="text-xs font-extrabold uppercase text-primary">Your voice matters here</p>
+              <h2 className="mt-2 font-display text-2xl font-extrabold text-foreground sm:text-3xl">Got something to say? Pin it.</h2>
+              <p className="mt-3 max-w-lg text-sm leading-relaxed text-muted-foreground">
+                Every note is reviewed by an ASYV mentor before it goes live on the wall.
               </p>
-              <p className="text-lg text-foreground/70 leading-relaxed mb-8">
-                Whether you're sharing personal stories, professional insights, or creative fiction, EssayHub provides the tools to craft your best work and reach an audience that genuinely cares.
-              </p>
-
-              <div className="flex items-center gap-6 pt-8 border-t border-border">
-                <div>
-                  <p className="text-3xl font-bold text-primary">2.5K+</p>
-                  <p className="text-sm text-foreground/70">Active Writers</p>
-                </div>
-                <div>
-                  <p className="text-3xl font-bold text-accent">50K+</p>
-                  <p className="text-sm text-foreground/70">Essays Published</p>
-                </div>
-                <div>
-                  <p className="text-3xl font-bold text-primary">500K+</p>
-                  <p className="text-sm text-foreground/70">Monthly Readers</p>
-                </div>
-              </div>
             </div>
-          </div>
+            <Link
+              href={user ? '/create' : '/auth/signup'}
+              className="inline-flex items-center gap-2 whitespace-nowrap rounded-xl bg-primary px-5 py-3 text-sm font-bold text-primary-foreground transition-colors hover:bg-primary/90"
+            >
+              <Sparkles size={17} />
+              {user ? 'Write a new note' : 'Join the wall'}
+            </Link>
         </div>
       </section>
 
-      {/* Final CTA Section */}
-      <section className="bg-green-800 text-primary-foreground py-20 sm:py-28 border-t border-border">
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-          <h2 className="text-4xl sm:text-5xl font-bold mb-6">
-            Ready to publish your first essay?
-          </h2>
-          <p className="text-lg text-primary-foreground/90 mb-8 leading-relaxed">
-            Join thousands of writers creating meaningful content and building their audience on EssayHub.
-          </p>
-          <Button variant="accent" size="lg" href="/auth/signup">
-            Get Started Free
-          </Button>
-        </div>
-      </section>
+      <Footer />
+    </div>
+  );
+}
 
-      {/* Professional Footer */}
-      <footer className="bg-background border-t border-border py-16 sm:py-20">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-8 mb-12">
-            <div>
-              <h4 className="font-bold text-foreground mb-4 text-sm">PRODUCT</h4>
-              <ul className="space-y-3">
-                <li><Link href="#" className="text-foreground/70 hover:text-foreground text-sm transition-colors">Features</Link></li>
-                <li><Link href="#" className="text-foreground/70 hover:text-foreground text-sm transition-colors">Pricing</Link></li>
-                <li><Link href="/posts" className="text-foreground/70 hover:text-foreground text-sm transition-colors">Explore Essays</Link></li>
-              </ul>
-            </div>
-            <div>
-              <h4 className="font-bold text-foreground mb-4 text-sm">COMMUNITY</h4>
-              <ul className="space-y-3">
-                <li><Link href="#" className="text-foreground/70 hover:text-foreground text-sm transition-colors">Writers</Link></li>
-                <li><Link href="#" className="text-foreground/70 hover:text-foreground text-sm transition-colors">Categories</Link></li>
-                <li><Link href="#" className="text-foreground/70 hover:text-foreground text-sm transition-colors">Trending</Link></li>
-              </ul>
-            </div>
-            <div>
-              <h4 className="font-bold text-foreground mb-4 text-sm">RESOURCES</h4>
-              <ul className="space-y-3">
-                <li><Link href="#" className="text-foreground/70 hover:text-foreground text-sm transition-colors">Blog</Link></li>
-                <li><Link href="#" className="text-foreground/70 hover:text-foreground text-sm transition-colors">Help Center</Link></li>
-                <li><Link href="#" className="text-foreground/70 hover:text-foreground text-sm transition-colors">Contact</Link></li>
-              </ul>
-            </div>
-            <div>
-              <h4 className="font-bold text-foreground mb-4 text-sm">LEGAL</h4>
-              <ul className="space-y-3">
-                <li><Link href="#" className="text-foreground/70 hover:text-foreground text-sm transition-colors">Privacy</Link></li>
-                <li><Link href="#" className="text-foreground/70 hover:text-foreground text-sm transition-colors">Terms</Link></li>
-                <li><Link href="#" className="text-foreground/70 hover:text-foreground text-sm transition-colors">Cookie Policy</Link></li>
-              </ul>
-            </div>
-          </div>
+function SectionTitle({ kicker, title, href, cta }) {
+  return (
+    <div className="mb-8 flex items-end justify-between gap-4">
+      <div>
+        <p className="mb-1 text-xs font-bold uppercase text-primary">{kicker}</p>
+        <h2 className="font-display text-2xl font-extrabold text-foreground sm:text-3xl">{title}</h2>
+      </div>
+      {href && (
+        <Link
+          href={href}
+          className="group hidden items-center gap-1.5 rounded-full border border-border bg-card px-4 py-2 text-xs font-extrabold text-foreground transition-all hover:border-primary/40 hover:text-primary sm:inline-flex"
+        >
+          {cta} <ArrowRight size={14} className="transition-transform group-hover:translate-x-0.5" />
+        </Link>
+      )}
+    </div>
+  );
+}
 
-          <div className="pt-8 border-t border-border">
-            <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
-              <div className="flex items-center gap-2">
-                <div className="w-6 h-6 rounded-lg bg-primary flex items-center justify-center text-primary-foreground font-bold text-sm">
-                  E
-                </div>
-                <span className="font-bold text-foreground">EssayHub</span>
-              </div>
-              <p className="text-foreground/70 text-sm">© 2026 EssayHub. All rights reserved. | Best writing platform on the web</p>
-            </div>
-          </div>
-        </div>
-      </footer>
+function PromptNote({ prompt }) {
+  return (
+    <motion.div
+      variants={boardItem}
+      whileHover={{ y: -6, scale: 1.03, rotate: 0 }}
+      style={{ rotate: 1.5 }}
+      className="relative rounded-2xl border border-dashed border-primary/40 bg-white p-5"
+    >
+      <p className="text-xs font-bold uppercase text-primary">Today&apos;s prompt</p>
+      <p className="mt-3 font-display text-lg font-semibold leading-snug text-foreground">{prompt}</p>
+      <Link
+        href="/create"
+        className="mt-4 inline-flex items-center gap-1.5 text-sm font-bold text-primary hover:underline"
+      >
+        <PenLine size={13} /> Answer it
+      </Link>
+    </motion.div>
+  );
+}
+
+function EmptyWall() {
+  return (
+    <div className="rounded-3xl border-2 border-dashed border-border bg-card/70 p-10 text-center">
+      <Pin size={40} className="mx-auto -rotate-12 text-primary" />
+      <h3 className="mt-3 font-display text-xl font-extrabold">The wall is waiting</h3>
+      <p className="mt-1 text-sm text-muted-foreground">Be the first ASYV student to pin a note.</p>
+      <Link
+        href="/create"
+        className="mt-5 inline-flex items-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-sm font-bold text-primary-foreground transition-colors hover:bg-primary/90"
+      >
+        <PenLine size={16} /> Start a note
+      </Link>
+    </div>
+  );
+}
+
+function NoteBuddy() {
+  return (
+    <div aria-hidden="true" className="relative grid h-12 w-12 shrink-0 place-items-center">
+      <span className="absolute h-9 w-8 -rotate-6 rounded-md border border-primary/20 bg-primary/5" />
+      <span className="relative grid h-9 w-8 rotate-3 place-items-center rounded-md border border-primary/30 bg-white shadow-sm">
+        <span className="absolute -top-1 h-1.5 w-2 rounded-full bg-primary/70" />
+        <span className="mt-1.5 flex items-center gap-1">
+          <span className="h-1 w-1 rounded-full bg-foreground" />
+          <span className="h-1 w-1 rounded-full bg-foreground" />
+        </span>
+        <span className="-mt-1 h-1.5 w-2.5 rounded-b-full border-b border-primary" />
+      </span>
+      <span className="absolute bottom-1 left-0 h-2 w-1.5 -rotate-12 rounded-full bg-primary/70" />
+      <span className="absolute bottom-1 right-0 h-2 w-1.5 rotate-12 rounded-full bg-primary/70" />
     </div>
   );
 }

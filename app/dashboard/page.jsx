@@ -8,6 +8,8 @@ import { Footer } from '@/components/shared/Footer';
 import { api } from '@/lib/api-client';
 import { Button } from '@/components/ui/customButton';
 import { UserAvatar } from '@/components/ui/UserAvatar';
+import { EssayCard } from '@/components/board/EssayCard';
+import { MasonryBoard } from '@/components/board/MasonryBoard';
 import {
   Edit2,
   Trash2,
@@ -113,7 +115,7 @@ export default function DashboardPage() {
     return (
       <>
         <Header />
-        <main className="min-h-screen bg-background flex flex-col items-center justify-center py-20">
+        <main className="min-h-screen bg-canvas flex flex-col items-center justify-center py-20">
           <div className="w-10 h-10 border-3 border-primary border-t-transparent rounded-full animate-spin mb-4" />
           <p className="text-muted-foreground text-sm font-medium">Loading your dashboard...</p>
         </main>
@@ -129,19 +131,19 @@ export default function DashboardPage() {
   return (
     <>
       <Header />
-      <main className="min-h-screen bg-background pb-20">
+      <main className="min-h-screen bg-canvas pb-20">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
           {/* Dashboard Title & CTA */}
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-10 pb-8 border-b border-border/80">
             <div>
               <div className="inline-flex items-center gap-2 px-3 py-1 bg-primary/10 border border-primary/20 text-primary rounded-full text-xs font-semibold uppercase tracking-wider mb-3">
-                <Sparkles size={13} /> Author Studio
+                <Sparkles size={13} /> My Board
               </div>
-              <h1 className="font-serif text-3xl sm:text-4xl font-extrabold text-foreground tracking-tight">
-                Writer Dashboard
+              <h1 className="font-display text-3xl sm:text-4xl font-extrabold text-foreground tracking-tight">
+                My Writing Board
               </h1>
               <p className="text-muted-foreground text-sm sm:text-base mt-1">
-                Manage your essays, analyze reader engagement, and craft your next story.
+                Everything you have pinned, saved and drafted — all on one board.
               </p>
             </div>
 
@@ -158,12 +160,13 @@ export default function DashboardPage() {
           </div>
 
           {/* Author Profile Banner */}
-          <section className="mb-10 bg-card border border-border rounded-2xl p-6 sm:p-8 shadow-xs">
+          <section className="relative mb-10 overflow-hidden rounded-[2rem] border border-border bg-card p-6 sm:p-8 shadow-[var(--shadow-note)]">
+            <div className="pointer-events-none absolute -right-16 -top-16 h-56 w-56 rounded-full bg-accent/10 blur-2xl" />
             <div className="flex flex-col md:flex-row gap-6 items-start md:items-center">
               <UserAvatar src={user.avatar} name={user.name} size="xl" />
               <div className="flex-1">
                 <div className="flex items-center gap-3 mb-1">
-                  <h2 className="font-serif text-2xl sm:text-3xl font-bold text-foreground">
+                  <h2 className="font-display text-2xl sm:text-3xl font-bold text-foreground">
                     {user.name}
                   </h2>
                   {user.isSuperuser ? (
@@ -177,27 +180,27 @@ export default function DashboardPage() {
                   )}
                 </div>
                 <p className="text-muted-foreground text-sm leading-relaxed mb-4 max-w-2xl">
-                  {user.bio || 'Sharing thoughtful stories and technical insights with the global community.'}
+                  {user.bio || 'ASYV student writer. Add a bio so the village knows your story.'}
                 </p>
 
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 pt-4 border-t border-border/60">
                   <div>
                     <p className="text-xs text-muted-foreground font-medium mb-0.5">Total Essays</p>
-                    <p className="font-serif text-xl font-extrabold text-foreground">{user.posts}</p>
+                    <p className="font-display text-xl font-extrabold text-foreground">{user.posts}</p>
                   </div>
                   <div>
                     <p className="text-xs text-muted-foreground font-medium mb-0.5">Total Claps</p>
-                    <p className="font-serif text-xl font-extrabold text-rose-500">
+                    <p className="font-display text-xl font-extrabold text-rose-500">
                       {user.likes?.toLocaleString()}
                     </p>
                   </div>
                   <div>
                     <p className="text-xs text-muted-foreground font-medium mb-0.5">Followers</p>
-                    <p className="font-serif text-xl font-extrabold text-foreground">{user.followers}</p>
+                    <p className="font-display text-xl font-extrabold text-foreground">{user.followers}</p>
                   </div>
                   <div>
                     <p className="text-xs text-muted-foreground font-medium mb-0.5">Following</p>
-                    <p className="font-serif text-xl font-extrabold text-foreground">{user.following}</p>
+                    <p className="font-display text-xl font-extrabold text-foreground">{user.following}</p>
                   </div>
                 </div>
               </div>
@@ -212,7 +215,7 @@ export default function DashboardPage() {
 
           {/* Analytics Cards */}
           <section className="mb-10 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-            <div className="bg-card border border-border p-5 rounded-2xl shadow-xs relative overflow-hidden group hover:border-primary/40 transition-all">
+            <div className="bg-note-mint -rotate-1 border border-black/5 p-5 rounded-3xl lift relative overflow-hidden group hover:border-primary/40 transition-all">
               <div className="flex items-center justify-between mb-3">
                 <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
                   Total Reads
@@ -221,7 +224,7 @@ export default function DashboardPage() {
                   <TrendingUp size={12} /> Real-Time
                 </span>
               </div>
-              <p className="font-serif text-3xl font-extrabold text-foreground mb-3">
+              <p className="font-display text-3xl font-extrabold text-foreground mb-3">
                 {(user.totalReads || 0).toLocaleString()}
               </p>
               <div className="h-10 w-full">
@@ -229,7 +232,7 @@ export default function DashboardPage() {
                   <path
                     d="M0,25 Q15,20 30,12 T60,18 T90,5 L100,8"
                     fill="none"
-                    stroke="#0f382c"
+                    stroke="#16a34a"
                     strokeWidth="2.5"
                     strokeLinecap="round"
                   />
@@ -240,15 +243,15 @@ export default function DashboardPage() {
                   />
                   <defs>
                     <linearGradient id="gradient-reads" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="#0f382c" />
-                      <stop offset="100%" stopColor="#0f382c" stopOpacity="0" />
+                      <stop offset="0%" stopColor="#16a34a" />
+                      <stop offset="100%" stopColor="#16a34a" stopOpacity="0" />
                     </linearGradient>
                   </defs>
                 </svg>
               </div>
             </div>
 
-            <div className="bg-card border border-border p-5 rounded-2xl shadow-xs relative overflow-hidden group hover:border-rose-400/40 transition-all">
+            <div className="bg-note-peach rotate-1 border border-black/5 p-5 rounded-3xl lift relative overflow-hidden group hover:border-rose-400/40 transition-all">
               <div className="flex items-center justify-between mb-3">
                 <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
                   Total Claps
@@ -257,7 +260,7 @@ export default function DashboardPage() {
                   <Heart size={12} /> Community
                 </span>
               </div>
-              <p className="font-serif text-3xl font-extrabold text-rose-500 mb-3">
+              <p className="font-display text-3xl font-extrabold text-rose-500 mb-3">
                 {user.likes?.toLocaleString()}
               </p>
               <div className="h-10 w-full">
@@ -273,7 +276,7 @@ export default function DashboardPage() {
               </div>
             </div>
 
-            <div className="bg-card border border-border p-5 rounded-2xl shadow-xs relative overflow-hidden group hover:border-amber-400/40 transition-all">
+            <div className="bg-note-butter -rotate-[0.6deg] border border-black/5 p-5 rounded-3xl lift relative overflow-hidden group hover:border-amber-400/40 transition-all">
               <div className="flex items-center justify-between mb-3">
                 <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
                   Reader Retention
@@ -282,7 +285,7 @@ export default function DashboardPage() {
                   {user.retentionRate || 0}%
                 </span>
               </div>
-              <p className="font-serif text-3xl font-extrabold text-foreground mb-3">
+              <p className="font-display text-3xl font-extrabold text-foreground mb-3">
                 {user.formattedDuration || '0m 0s'}
               </p>
               <div className="h-10 w-full">
@@ -290,7 +293,7 @@ export default function DashboardPage() {
                   <path
                     d="M0,18 Q25,8 50,16 T100,6"
                     fill="none"
-                    stroke="#d4af37"
+                    stroke="#f97316"
                     strokeWidth="2.5"
                     strokeLinecap="round"
                   />
@@ -298,7 +301,7 @@ export default function DashboardPage() {
               </div>
             </div>
 
-            <div className="bg-card border border-border p-5 rounded-2xl shadow-xs relative overflow-hidden group hover:border-primary/40 transition-all">
+            <div className="bg-note-sky rotate-[0.8deg] border border-black/5 p-5 rounded-3xl lift relative overflow-hidden group hover:border-primary/40 transition-all">
               <div className="flex items-center justify-between mb-3">
                 <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
                   Published Stories
@@ -307,7 +310,7 @@ export default function DashboardPage() {
                   Active
                 </span>
               </div>
-              <p className="font-serif text-3xl font-extrabold text-foreground mb-3">
+              <p className="font-display text-3xl font-extrabold text-foreground mb-3">
                 {publishedPosts.length}
               </p>
               <div className="h-10 w-full flex items-center gap-1">
@@ -323,8 +326,8 @@ export default function DashboardPage() {
           </section>
 
           {/* Animated Tabbed Content Navigation */}
-          <section className="mb-8 border-b border-border/80 flex items-center justify-between">
-            <div className="flex gap-2 sm:gap-6 overflow-x-auto pb-px">
+          <section className="mb-8 flex items-center justify-between gap-3 rounded-2xl border border-border bg-card/85 p-2 shadow-sm backdrop-blur-md">
+            <div className="flex gap-1 overflow-x-auto no-scrollbar">
               {[
                 { id: 'published', label: `Published (${publishedPosts.length})`, icon: FileText },
                 { id: 'pending', label: `Pending Approval (${pendingPosts.length})`, icon: Clock },
@@ -339,16 +342,16 @@ export default function DashboardPage() {
                   <button
                     key={tab.id}
                     onClick={() => setActiveTab(tab.id)}
-                    className={`relative py-3.5 px-2 sm:px-3 text-xs sm:text-sm font-bold flex items-center gap-2 transition-colors whitespace-nowrap ${
-                      isActive ? 'text-primary' : 'text-muted-foreground hover:text-foreground'
+                    className={`relative rounded-xl py-2.5 px-3 text-xs sm:text-sm font-extrabold flex items-center gap-2 transition-colors whitespace-nowrap ${
+                      isActive ? 'text-primary-foreground' : 'text-muted-foreground hover:bg-secondary hover:text-foreground'
                     }`}
                   >
-                    <Icon size={16} />
-                    <span>{tab.label}</span>
+                    <Icon size={16} className="relative z-10" />
+                    <span className="relative z-10">{tab.label}</span>
                     {isActive && (
                       <motion.div
                         layoutId="dashboardTab"
-                        className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary rounded-full"
+                        className="absolute inset-0 rounded-xl bg-primary"
                       />
                     )}
                   </button>
@@ -393,11 +396,11 @@ export default function DashboardPage() {
                 exit={{ opacity: 0 }}
               >
                 {publishedPosts.length === 0 ? (
-                  <div className="text-center py-16 px-6 bg-card border border-border rounded-2xl max-w-lg mx-auto">
+                  <div className="text-center py-16 px-6 bg-card/80 border-2 border-dashed border-border rounded-[2rem] max-w-lg mx-auto">
                     <div className="w-14 h-14 rounded-full bg-secondary text-primary flex items-center justify-center mx-auto mb-4 text-2xl">
                       ✍️
                     </div>
-                    <h3 className="font-serif text-2xl font-bold text-foreground mb-2">
+                    <h3 className="font-display text-2xl font-bold text-foreground mb-2">
                       No published essays yet
                     </h3>
                     <p className="text-muted-foreground text-sm leading-relaxed mb-6">
@@ -405,80 +408,36 @@ export default function DashboardPage() {
                     </p>
                     <Link
                       href="/create"
-                      className="inline-flex items-center gap-2 px-6 py-3 bg-primary text-primary-foreground font-semibold text-xs rounded-xl hover:bg-primary/90 transition-all shadow-xs"
+                      className="inline-flex items-center gap-2 px-6 py-3 bg-primary text-primary-foreground font-semibold text-xs rounded-xl hover:bg-primary/90 transition-all duration-300 shadow-[var(--shadow-note)] hover:-translate-y-1 hover:shadow-[var(--shadow-float)]"
                     >
                       <Plus size={16} /> Write Your First Essay
                     </Link>
                   </div>
                 ) : viewMode === 'grid' ? (
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  <MasonryBoard columns="sm:columns-2 lg:columns-3">
                     {publishedPosts.map((post) => (
-                      <article
+                      <EssayCard
                         key={post.id}
-                        className="group bg-card border border-border hover:border-primary/50 rounded-2xl overflow-hidden shadow-xs hover:shadow-xl transition-all duration-300 flex flex-col justify-between"
-                      >
-                        <div>
-                          {post.featured_image && (
-                            <div className="h-44 overflow-hidden relative bg-secondary">
-                              <img
-                                src={post.featured_image}
-                                alt={post.title}
-                                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                              />
-                            </div>
-                          )}
-                          <div className="p-6">
-                            <div className="flex items-center justify-between mb-3">
-                              <span className="text-[11px] font-semibold bg-secondary text-foreground px-2.5 py-0.5 rounded-full">
-                                {post.category}
-                              </span>
-                              <span className="text-[11px] text-muted-foreground flex items-center gap-1 font-medium">
-                                <Clock size={12} /> {post.read_time}m read
-                              </span>
-                            </div>
-                            <h4 className="font-serif font-bold text-lg text-foreground group-hover:text-primary transition-colors mb-2 line-clamp-2">
-                              {post.title}
-                            </h4>
-                            <p className="text-xs text-muted-foreground line-clamp-2 leading-relaxed mb-4">
-                              {post.excerpt}
-                            </p>
-                          </div>
-                        </div>
-
-                        <div className="px-6 pb-6 pt-0 flex gap-2 border-t border-border/60 mt-2">
-                          <Link
-                            href={`/posts/${post.id}`}
-                            className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 bg-secondary hover:bg-muted text-foreground text-xs font-semibold rounded-xl transition-colors"
-                          >
-                            <Eye size={15} /> View
-                          </Link>
-                          <Link
-                            href={`/create?edit=${post.id}`}
-                            className="p-2 bg-secondary hover:bg-muted text-foreground rounded-xl transition-colors"
-                            title="Edit Essay"
-                          >
-                            <Edit2 size={16} />
-                          </Link>
-                          <button
-                            onClick={() => handleDelete(post.id)}
-                            className="p-2 bg-secondary hover:bg-rose-500/10 text-muted-foreground hover:text-rose-500 rounded-xl transition-colors"
-                            title="Delete Essay"
-                          >
-                            <Trash2 size={16} />
-                          </button>
-                        </div>
-                      </article>
+                        post={{ ...post, author: { id: user.id, name: user.name, avatar: user.avatar } }}
+                        actions={
+                          <>
+                            <Link href={`/posts/${post.id}`} title="View" className="rounded-full p-1.5 text-muted-foreground hover:bg-white/70 hover:text-primary transition-colors"><Eye size={15} /></Link>
+                            <Link href={`/create?edit=${post.id}`} title="Edit" className="rounded-full p-1.5 text-muted-foreground hover:bg-white/70 hover:text-accent transition-colors"><Edit2 size={15} /></Link>
+                            <button onClick={() => handleDelete(post.id)} title="Delete" className="rounded-full p-1.5 text-muted-foreground hover:bg-rose-500/10 hover:text-rose-500 transition-colors"><Trash2 size={15} /></button>
+                          </>
+                        }
+                      />
                     ))}
-                  </div>
+                  </MasonryBoard>
                 ) : (
                   <div className="space-y-3">
                     {publishedPosts.map((post) => (
                       <div
                         key={post.id}
-                        className="bg-card border border-border p-5 rounded-2xl flex items-center justify-between hover:border-primary/40 transition-all shadow-xs"
+                        className="bg-card border border-border p-5 rounded-2xl flex items-center justify-between hover:border-primary/40 transition-all duration-300 shadow-[var(--shadow-note)] hover:-translate-y-1 hover:shadow-[var(--shadow-float)]"
                       >
                         <div className="flex-1 pr-4">
-                          <h4 className="font-serif font-bold text-base text-foreground mb-1">
+                          <h4 className="font-display font-bold text-base text-foreground mb-1">
                             {post.title}
                           </h4>
                           <p className="text-xs text-muted-foreground line-clamp-1">{post.excerpt}</p>
@@ -518,11 +477,11 @@ export default function DashboardPage() {
                 exit={{ opacity: 0 }}
               >
                 {pendingPosts.length === 0 ? (
-                  <div className="text-center py-16 px-6 bg-card border border-border rounded-2xl max-w-lg mx-auto">
+                  <div className="text-center py-16 px-6 bg-card/80 border-2 border-dashed border-border rounded-[2rem] max-w-lg mx-auto">
                     <div className="w-14 h-14 rounded-full bg-amber-500/10 text-amber-500 flex items-center justify-center mx-auto mb-4 text-2xl">
                       ⏳
                     </div>
-                    <h3 className="font-serif text-2xl font-bold text-foreground mb-2">No pending essays</h3>
+                    <h3 className="font-display text-2xl font-bold text-foreground mb-2">No pending essays</h3>
                     <p className="text-muted-foreground text-sm leading-relaxed mb-6">
                       You don't have any essays currently awaiting superuser moderation.
                     </p>
@@ -532,14 +491,14 @@ export default function DashboardPage() {
                     {pendingPosts.map((post) => (
                       <div
                         key={post.id}
-                        className="bg-card border border-border p-5 rounded-2xl flex items-center justify-between hover:border-amber-400/40 transition-all shadow-xs"
+                        className="bg-card border border-border p-5 rounded-2xl flex items-center justify-between hover:border-amber-400/40 transition-all duration-300 shadow-[var(--shadow-note)] hover:-translate-y-1 hover:shadow-[var(--shadow-float)]"
                       >
                         <div className="flex-1 pr-4">
                           <div className="flex items-center gap-2 mb-1">
                             <span className="text-[10px] uppercase font-bold bg-amber-500/10 text-amber-600 px-2.5 py-0.5 rounded-full border border-amber-500/20">
                               Pending Review
                             </span>
-                            <h4 className="font-serif font-bold text-base text-foreground">
+                            <h4 className="font-display font-bold text-base text-foreground">
                               {post.title}
                             </h4>
                           </div>
@@ -568,11 +527,11 @@ export default function DashboardPage() {
                 exit={{ opacity: 0 }}
               >
                 {revisionPosts.length === 0 ? (
-                  <div className="text-center py-16 px-6 bg-card border border-border rounded-2xl max-w-lg mx-auto">
+                  <div className="text-center py-16 px-6 bg-card/80 border-2 border-dashed border-border rounded-[2rem] max-w-lg mx-auto">
                     <div className="w-14 h-14 rounded-full bg-rose-500/10 text-rose-500 flex items-center justify-center mx-auto mb-4 text-2xl">
                       ✅
                     </div>
-                    <h3 className="font-serif text-2xl font-bold text-foreground mb-2">No revisions needed</h3>
+                    <h3 className="font-display text-2xl font-bold text-foreground mb-2">No revisions needed</h3>
                     <p className="text-muted-foreground text-sm leading-relaxed mb-6">
                       You don't have any essays that need revision at this time.
                     </p>
@@ -589,7 +548,7 @@ export default function DashboardPage() {
                             <span className="text-[10px] uppercase font-bold bg-rose-500/10 text-rose-600 px-2.5 py-0.5 rounded-full border border-rose-500/20 animate-pulse">
                               Revision Required
                             </span>
-                            <h4 className="font-serif font-bold text-base text-foreground">
+                            <h4 className="font-display font-bold text-base text-foreground">
                               {post.title}
                             </h4>
                           </div>
@@ -627,11 +586,11 @@ export default function DashboardPage() {
                 exit={{ opacity: 0 }}
               >
                 {draftPosts.length === 0 ? (
-                  <div className="text-center py-16 px-6 bg-card border border-border rounded-2xl max-w-lg mx-auto">
+                  <div className="text-center py-16 px-6 bg-card/80 border-2 border-dashed border-border rounded-[2rem] max-w-lg mx-auto">
                     <div className="w-14 h-14 rounded-full bg-secondary text-amber-500 flex items-center justify-center mx-auto mb-4 text-2xl">
                       📝
                     </div>
-                    <h3 className="font-serif text-2xl font-bold text-foreground mb-2">No drafts saved</h3>
+                    <h3 className="font-display text-2xl font-bold text-foreground mb-2">No drafts saved</h3>
                     <p className="text-muted-foreground text-sm leading-relaxed mb-6">
                       You don't have any unpublished drafts right now. Start writing a new essay whenever inspiration strikes.
                     </p>
@@ -644,14 +603,14 @@ export default function DashboardPage() {
                     {draftPosts.map((post) => (
                       <div
                         key={post.id}
-                        className="bg-card border border-border p-5 rounded-2xl flex items-center justify-between hover:border-amber-400/40 transition-all shadow-xs"
+                        className="bg-card border border-border p-5 rounded-2xl flex items-center justify-between hover:border-amber-400/40 transition-all duration-300 shadow-[var(--shadow-note)] hover:-translate-y-1 hover:shadow-[var(--shadow-float)]"
                       >
                         <div>
                           <div className="flex items-center gap-2 mb-1">
                             <span className="text-[10px] uppercase font-bold bg-amber-500/10 text-amber-600 px-2 py-0.5 rounded-full">
                               Draft
                             </span>
-                            <h4 className="font-serif font-bold text-base text-foreground">
+                            <h4 className="font-display font-bold text-base text-foreground">
                               {post.title || 'Untitled Draft'}
                             </h4>
                           </div>
@@ -683,11 +642,11 @@ export default function DashboardPage() {
                 exit={{ opacity: 0 }}
               >
                 {bookmarkedPosts.length === 0 ? (
-                  <div className="text-center py-16 px-6 bg-card border border-border rounded-2xl max-w-lg mx-auto">
+                  <div className="text-center py-16 px-6 bg-card/80 border-2 border-dashed border-border rounded-[2rem] max-w-lg mx-auto">
                     <div className="w-14 h-14 rounded-full bg-amber-500/10 text-amber-500 flex items-center justify-center mx-auto mb-4 text-2xl">
                       🔖
                     </div>
-                    <h3 className="font-serif text-2xl font-bold text-foreground mb-2">
+                    <h3 className="font-display text-2xl font-bold text-foreground mb-2">
                       Bookmarked Essays
                     </h3>
                     <p className="text-muted-foreground text-sm leading-relaxed mb-6">
@@ -695,64 +654,26 @@ export default function DashboardPage() {
                     </p>
                     <Link
                       href="/posts"
-                      className="inline-flex items-center gap-2 px-6 py-3 bg-primary text-primary-foreground font-semibold text-xs rounded-xl hover:bg-primary/90 transition-all shadow-xs"
+                      className="inline-flex items-center gap-2 px-6 py-3 bg-primary text-primary-foreground font-semibold text-xs rounded-xl hover:bg-primary/90 transition-all duration-300 shadow-[var(--shadow-note)] hover:-translate-y-1 hover:shadow-[var(--shadow-float)]"
                     >
                       <BookOpen size={16} /> Explore Feed
                     </Link>
                   </div>
                 ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  <MasonryBoard columns="sm:columns-2 lg:columns-3">
                     {bookmarkedPosts.map((post) => (
-                      <article
+                      <EssayCard
                         key={post.id}
-                        className="group bg-card border border-border hover:border-primary/50 rounded-2xl overflow-hidden shadow-xs hover:shadow-xl transition-all duration-300 flex flex-col justify-between"
-                      >
-                        <div>
-                          {post.featured_image && (
-                            <div className="h-44 overflow-hidden relative bg-secondary">
-                              <img
-                                src={post.featured_image}
-                                alt={post.title}
-                                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                              />
-                            </div>
-                          )}
-                          <div className="p-6">
-                            <div className="flex items-center justify-between mb-3">
-                              <span className="text-[11px] font-semibold bg-secondary text-foreground px-2.5 py-0.5 rounded-full">
-                                {post.category}
-                              </span>
-                              <span className="text-[11px] text-muted-foreground flex items-center gap-1 font-medium">
-                                <Clock size={12} /> {post.read_time}m read
-                              </span>
-                            </div>
-                            <h4 className="font-serif font-bold text-lg text-foreground group-hover:text-primary transition-colors mb-2 line-clamp-2">
-                              {post.title}
-                            </h4>
-                            <p className="text-xs text-muted-foreground line-clamp-2 leading-relaxed mb-4">
-                              {post.excerpt}
-                            </p>
-                          </div>
-                        </div>
-
-                        <div className="px-6 pb-6 pt-0 flex gap-2 border-t border-border/60 mt-2">
-                          <Link
-                            href={`/posts/${post.id}`}
-                            className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 bg-secondary hover:bg-muted text-foreground text-xs font-semibold rounded-xl transition-colors"
-                          >
-                            <Eye size={15} /> Read Essay
-                          </Link>
-                          <button
-                            onClick={() => handleRemoveBookmark(post.id)}
-                            className="p-2 bg-secondary hover:bg-rose-500/10 text-rose-500 rounded-xl transition-colors"
-                            title="Remove Bookmark"
-                          >
-                            <Bookmark size={16} className="fill-amber-500 text-amber-500" />
-                          </button>
-                        </div>
-                      </article>
+                        post={post}
+                        actions={
+                          <>
+                            <Link href={`/posts/${post.id}`} title="View" className="rounded-full p-1.5 text-muted-foreground hover:bg-white/70 hover:text-primary transition-colors"><Eye size={15} /></Link>
+                            <button onClick={() => handleRemoveBookmark(post.id)} title="Remove bookmark" className="rounded-full p-1.5 text-accent bg-accent/10 hover:bg-accent/20 transition-colors"><Bookmark size={15} className="fill-accent" /></button>
+                          </>
+                        }
+                      />
                     ))}
-                  </div>
+                  </MasonryBoard>
                 )}
               </motion.div>
             )}
@@ -765,7 +686,7 @@ export default function DashboardPage() {
                 exit={{ opacity: 0 }}
                 className="bg-card border border-border p-8 rounded-2xl shadow-xs"
               >
-                <h3 className="font-serif text-xl font-bold text-foreground mb-6">
+                <h3 className="font-display text-xl font-bold text-foreground mb-6">
                   Reader Engagement Insights
                 </h3>
                 <div className="space-y-6">

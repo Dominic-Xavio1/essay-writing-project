@@ -3,24 +3,36 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { motion, AnimatePresence } from 'framer-motion';
 import { Header } from '@/components/shared/Header';
-import { Footer } from '@/components/shared/Footer';
 import { RichTextEditor } from '@/components/editor/RichTextEditor';
 import { api } from '@/lib/api-client';
 import { categories } from '@/lib/posts';
-import { Button } from '@/components/ui/customButton';
+import { categoryMeta } from '@/lib/board';
 import {
-  Upload,
   X,
-  Sparkles,
   Clock,
-  Check,
-  ImageIcon,
-  Tag as TagIcon,
-  ArrowLeft,
-  BookOpen,
+  ImagePlus,
+  Hash,
+  Send,
+  Save,
+  Lightbulb,
+  Sparkles,
+  Loader2,
+  Sunrise,
+  Users,
+  Wrench,
+  Flag,
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { cn } from '@/lib/utils';
+
+const SPARKS = [
+  { icon: Sunrise, tone: 'text-accent', text: 'A morning on the hill you will never forget' },
+  { icon: Users, tone: 'text-primary', text: 'Someone in your family (village family counts!) who changed you' },
+  { icon: Wrench, tone: 'text-sky-600', text: 'A problem at school you would love to fix' },
+  { icon: Flag, tone: 'text-violet-600', text: 'What Rwanda will look like when you are 30' },
+];
 
 export function CreateForm() {
   const router = useRouter();
@@ -53,20 +65,17 @@ export function CreateForm() {
       .catch(() => toast.error('Failed to load essay'));
   }, [editId]);
 
-  // Strip HTML tags for clean word & character count
   const plainTextContent = content.replace(/<[^>]*>/g, '').trim();
-  const characterCount = plainTextContent.length;
   const wordCount = plainTextContent ? plainTextContent.split(/\s+/).length : 0;
   const estimatedReadTime = Math.max(1, Math.ceil(wordCount / 200));
-
-  // Word goal target calculation for SVG progress ring (target: 500 words)
   const targetWords = 500;
   const wordProgress = Math.min(100, Math.round((wordCount / targetWords) * 100));
 
   const handleAddTag = (e) => {
-    if (e.key === 'Enter' && tagInput.trim()) {
+    if ((e.key === 'Enter' || e.key === ',') && tagInput.trim()) {
       e.preventDefault();
-      if (!tags.includes(tagInput.trim())) setTags([...tags, tagInput.trim()]);
+      const clean = tagInput.trim().replace(/^#/, '');
+      if (clean && !tags.includes(clean)) setTags([...tags, clean]);
       setTagInput('');
     }
   };
@@ -79,7 +88,7 @@ export function CreateForm() {
     const reader = new FileReader();
     reader.onload = (event) => setFeaturedImage(event.target?.result);
     reader.readAsDataURL(file);
-    toast.success('Cover image uploaded');
+    toast.success('Cover image added 🖼️');
   };
 
   const handleImageUpload = (e) => {
@@ -106,11 +115,11 @@ export function CreateForm() {
 
   const submit = async (status) => {
     if (!title.trim()) {
-      toast.error('Please add a title to your essay');
+      toast.error('Give your note a title first ✏️');
       return;
     }
     if (status === 'published' && (!excerpt.trim() || !content.trim())) {
-      toast.error('Please complete title, summary excerpt, and content before publishing');
+      toast.error('Add a one-line summary and some content before pinning');
       return;
     }
 
@@ -127,15 +136,15 @@ export function CreateForm() {
       };
       if (editId) {
         await api.updatePost(editId, body);
-        toast.success(status === 'draft' ? 'Draft updated!' : 'Essay updated successfully!');
+        toast.success(status === 'draft' ? 'Draft updated!' : 'Note updated!');
       } else {
         const res = await api.createPost(body);
         if (status === 'draft') {
           toast.success('Draft saved!');
         } else if (res.post?.status === 'pending') {
-          toast.success('Essay submitted for superuser review!');
+          toast.success('Sent to a mentor for review 🎉');
         } else {
-          toast.success('Essay published successfully!');
+          toast.success('Pinned to the wall! 🎉');
         }
         if (status === 'published') {
           setTitle('');
@@ -154,234 +163,285 @@ export function CreateForm() {
     }
   };
 
+  const meta = categoryMeta(category);
+  const MetaIcon = meta.icon;
+
   return (
     <>
       <Header />
-      <main className="min-h-screen bg-background pb-28">
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
-          {/* Header Bar */}
-          <div className="flex items-center justify-between gap-4 mb-8 pb-6 border-b border-border/80">
-            <div>
-              <div className="inline-flex items-center gap-1.5 text-xs font-semibold text-primary bg-primary/10 px-3 py-1 rounded-full uppercase tracking-wider mb-2">
-                <Sparkles size={13} /> Editorial Studio
+      <main className="relative min-h-screen bg-canvas-lines pb-24">
+        <div className="pointer-events-none absolute left-0 top-20 h-72 w-72 rounded-full bg-primary/10 blur-3xl" />
+        <div className="pointer-events-none absolute right-0 top-96 h-72 w-72 rounded-full bg-accent/10 blur-3xl" />
+
+        <div className="relative mx-auto grid max-w-6xl grid-cols-1 gap-8 px-3 py-8 sm:px-6 xl:grid-cols-[1fr_260px]">
+          {/* Floating creation sheet */}
+          <motion.div
+            initial={{ opacity: 0, y: 40, scale: 0.97 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            transition={{ type: 'spring', stiffness: 200, damping: 24 }}
+            className="relative rounded-[2rem] border border-border bg-card shadow-[0_30px_80px_-30px_rgba(26,33,24,0.35)]"
+          >
+            {/* Sheet top bar */}
+            <div className="sticky top-[5.25rem] z-30 flex items-center justify-between gap-3 rounded-t-[2rem] border-b border-border bg-card/90 px-4 py-3 backdrop-blur-md sm:px-6">
+              <div className="flex min-w-0 items-center gap-3">
+                <Link
+                  href="/dashboard"
+                  aria-label="Close editor"
+                  className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-secondary text-muted-foreground transition-all hover:rotate-90 hover:bg-rose-500/10 hover:text-rose-500"
+                >
+                  <X size={18} />
+                </Link>
+                <div className="min-w-0">
+                  <p className="truncate font-display text-sm font-extrabold text-foreground">
+                    {editId ? 'Editing your note' : 'New note'}
+                  </p>
+                  <p className="flex items-center gap-1 text-[11px] font-bold text-muted-foreground">
+                    <Clock size={11} /> {wordCount} words · ~{estimatedReadTime} min read
+                  </p>
+                </div>
               </div>
-              <h1 className="font-serif text-3xl sm:text-4xl font-extrabold text-foreground tracking-tight">
-                {editId ? 'Edit Essay' : 'Draft New Essay'}
-              </h1>
+
+              <div className="flex items-center gap-2">
+                <div className="relative hidden h-9 w-9 sm:block" title={`${wordProgress}% of a ${targetWords}-word goal`}>
+                  <svg className="h-9 w-9 -rotate-90" viewBox="0 0 40 40">
+                    <circle cx="20" cy="20" r="16" stroke="currentColor" strokeWidth="4" className="text-secondary" fill="none" />
+                    <circle
+                      cx="20"
+                      cy="20"
+                      r="16"
+                      stroke="currentColor"
+                      strokeWidth="4"
+                      className={cn('transition-all duration-500', wordProgress >= 100 ? 'text-accent' : 'text-primary')}
+                      fill="none"
+                      pathLength="100"
+                      strokeDasharray="100"
+                      strokeDashoffset={100 - wordProgress}
+                      strokeLinecap="round"
+                    />
+                  </svg>
+                  <span className="absolute inset-0 grid place-items-center text-[9px] font-black">{wordProgress}%</span>
+                </div>
+                <motion.button
+                  type="button"
+                  whileHover={{ y: -2 }}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={() => submit('draft')}
+                  disabled={saving}
+                  className="inline-flex items-center gap-1.5 rounded-xl border-2 border-primary/20 px-3 py-2 text-xs font-extrabold text-primary transition-colors hover:border-primary disabled:opacity-50 sm:px-4"
+                >
+                  <Save size={15} />
+                  <span className="hidden sm:inline">Save draft</span>
+                </motion.button>
+                <motion.button
+                  type="button"
+                  whileHover={{ y: -2, scale: 1.04 }}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={() => submit('published')}
+                  disabled={saving}
+                  className="inline-flex items-center gap-1.5 rounded-xl bg-accent px-4 py-2 text-xs font-extrabold text-accent-foreground shadow-[0_10px_22px_-10px_rgba(249,115,22,0.8)] disabled:opacity-50"
+                >
+                  {saving ? <Loader2 size={15} className="animate-spin" /> : <Send size={15} />}
+                  {editId ? 'Update' : 'Pin it'}
+                </motion.button>
+              </div>
             </div>
 
-            {/* Live Progress Ring Counter */}
-            <div className="flex items-center gap-4 bg-card border border-border px-4 py-2 rounded-2xl shadow-xs">
-              <div className="relative w-10 h-10 flex items-center justify-center">
-                <svg className="w-10 h-10 transform -rotate-90">
-                  <circle
-                    cx="20"
-                    cy="20"
-                    r="16"
-                    stroke="currentColor"
-                    strokeWidth="3.5"
-                    className="text-secondary"
-                    fill="transparent"
-                  />
-                  <circle
-                    cx="20"
-                    cy="20"
-                    r="16"
-                    stroke="currentColor"
-                    strokeWidth="3.5"
-                    className="text-emerald-600 transition-all duration-300"
-                    fill="transparent"
-                    strokeDasharray="100"
-                    strokeDashoffset={100 - wordProgress}
-                    strokeLinecap="round"
-                  />
-                </svg>
-                <span className="absolute text-[10px] font-bold text-foreground">{wordProgress}%</span>
-              </div>
+            <form className="space-y-6 p-4 sm:p-8" onSubmit={(e) => e.preventDefault()}>
+              {/* Board / category stickers */}
               <div>
-                <p className="text-xs font-bold text-foreground">{wordCount} words</p>
-                <p className="text-[11px] text-muted-foreground flex items-center gap-1">
-                  <Clock size={11} /> ~{estimatedReadTime}m read
+                <p className="mb-2 text-[11px] font-extrabold uppercase tracking-wider text-muted-foreground">
+                  Which board?
                 </p>
+                <div className="flex flex-wrap gap-2">
+                  {categories
+                    .filter((c) => c !== 'All')
+                    .map((cat) => {
+                      const CatIcon = categoryMeta(cat).icon;
+                      const active = category === cat;
+                      return (
+                        <motion.button
+                          key={cat}
+                          type="button"
+                          whileHover={{ y: -3, rotate: -2 }}
+                          whileTap={{ scale: 0.92 }}
+                          onClick={() => setCategory(cat)}
+                          className={cn(
+                            'inline-flex items-center gap-1.5 rounded-2xl border-2 px-3 py-2 text-xs font-extrabold transition-colors',
+                            active
+                              ? 'border-primary bg-primary text-primary-foreground shadow-md'
+                              : 'border-border bg-background text-foreground/70 hover:border-primary/40'
+                          )}
+                        >
+                          <CatIcon size={14} strokeWidth={2.5} /> {cat}
+                        </motion.button>
+                      );
+                    })}
+                </div>
               </div>
-            </div>
-          </div>
 
-          <form className="space-y-8" onSubmit={(e) => e.preventDefault()}>
-            {/* Title Input */}
-            <div>
-              <input
-                type="text"
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                placeholder="Title of your essay..."
-                className="w-full font-serif text-3xl sm:text-4xl font-bold bg-transparent border-b border-border/80 pb-3 text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:border-primary transition-all"
-              />
-            </div>
-
-            {/* Excerpt Input */}
-            <div>
-              <label className="block text-xs uppercase tracking-wider font-bold text-muted-foreground mb-2">
-                Summary Excerpt
-              </label>
-              <textarea
-                value={excerpt}
-                onChange={(e) => setExcerpt(e.target.value)}
-                placeholder="Write a brief, engaging summary of your essay..."
-                rows={2}
-                maxLength={300}
-                className="w-full px-4 py-3 bg-card border border-border rounded-xl text-foreground text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary resize-none shadow-xs"
-              />
-              <p className="text-[11px] text-muted-foreground mt-1 text-right">
-                {excerpt.length}/300 characters
-              </p>
-            </div>
-
-            {/* Drag & Drop Cover Image Uploader */}
-            <div>
-              <label className="block text-xs uppercase tracking-wider font-bold text-muted-foreground mb-2">
-                Cover Image
-              </label>
-              {featuredImage ? (
-                <div className="relative w-full h-56 sm:h-72 rounded-2xl overflow-hidden group border border-border shadow-xs">
-                  <img src={featuredImage} alt="Cover Preview" className="w-full h-full object-cover" />
-                  <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-3">
+              {/* Cover */}
+              <AnimatePresence mode="wait">
+                {featuredImage ? (
+                  <motion.div
+                    key="cover"
+                    initial={{ opacity: 0, scale: 0.97 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.97 }}
+                    className="group relative h-52 overflow-hidden rounded-3xl border border-border sm:h-72"
+                  >
+                    <img src={featuredImage} alt="Cover preview" className="h-full w-full object-cover" />
                     <button
                       type="button"
                       onClick={() => setFeaturedImage(null)}
-                      className="px-4 py-2 bg-rose-600 text-white text-xs font-semibold rounded-xl hover:bg-rose-700 transition-colors flex items-center gap-1.5 shadow-sm"
+                      className="absolute right-3 top-3 inline-flex items-center gap-1.5 rounded-full bg-black/60 px-3 py-1.5 text-xs font-bold text-white opacity-0 backdrop-blur transition-opacity group-hover:opacity-100 focus:opacity-100"
                     >
-                      <X size={16} /> Remove Cover
+                      <X size={14} /> Remove
                     </button>
-                  </div>
-                </div>
-              ) : (
-                <label
-                  onDragOver={handleDragOver}
-                  onDragLeave={handleDragLeave}
-                  onDrop={handleDrop}
-                  className={`block border-2 border-dashed rounded-2xl p-8 sm:p-12 text-center cursor-pointer transition-all ${isDragging
-                      ? 'border-primary bg-primary/5 scale-[1.01]'
-                      : 'border-border/90 bg-card hover:border-primary/50'
-                    }`}
-                >
-                  <div className="w-12 h-12 rounded-full bg-secondary text-primary flex items-center justify-center mx-auto mb-3">
-                    <Upload size={22} />
-                  </div>
-                  <p className="font-bold text-sm text-foreground mb-1">
-                    Drag and drop your cover image here
-                  </p>
-                  <p className="text-xs text-muted-foreground mb-4">
-                    Supports PNG, JPG, WebP up to 10MB
-                  </p>
-                  <span className="inline-block px-4 py-2 bg-secondary text-foreground text-xs font-semibold rounded-xl hover:bg-muted transition-colors">
-                    Browse File
-                  </span>
-                  <input
-                    type="file"
-                    accept="image/*"
-                    onChange={handleImageUpload}
-                    className="hidden"
-                  />
-                </label>
-              )}
-            </div>
-
-            {/* Rich Text Editorial Editor */}
-            <div>
-              <label className="block text-xs uppercase tracking-wider font-bold text-muted-foreground mb-2">
-                Essay Body
-              </label>
-              <RichTextEditor value={content} onChange={setContent} />
-            </div>
-
-            {/* Category & Tags Grid */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 bg-card border border-border p-6 rounded-2xl shadow-xs">
-              <div>
-                <label className="block text-xs uppercase tracking-wider font-bold text-muted-foreground mb-2">
-                  Category
-                </label>
-                <select
-                  value={category}
-                  onChange={(e) => setCategory(e.target.value)}
-                  className="w-full px-4 py-3 bg-secondary border border-border rounded-xl text-foreground text-sm font-medium focus:outline-none focus:ring-2 focus:ring-primary cursor-pointer"
-                >
-                  {categories
-                    .filter((c) => c !== 'All')
-                    .map((cat) => (
-                      <option key={cat} value={cat}>
-                        {cat}
-                      </option>
-                    ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-xs uppercase tracking-wider font-bold text-muted-foreground mb-2">
-                  Tags
-                </label>
-                <input
-                  type="text"
-                  value={tagInput}
-                  onChange={(e) => setTagInput(e.target.value)}
-                  onKeyDown={handleAddTag}
-                  placeholder="Add tag & press Enter..."
-                  className="w-full px-4 py-3 bg-secondary border border-border rounded-xl text-foreground text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary mb-3"
-                />
-                <div className="flex flex-wrap gap-1.5">
-                  {tags.map((tag) => (
-                    <span
-                      key={tag}
-                      className="inline-flex items-center gap-1.5 bg-primary text-primary-foreground px-3 py-1 rounded-full text-xs font-semibold"
-                    >
-                      #{tag}
-                      <button
-                        type="button"
-                        onClick={() => setTags(tags.filter((t) => t !== tag))}
-                        className="hover:opacity-80"
-                      >
-                        <X size={14} />
-                      </button>
+                  </motion.div>
+                ) : (
+                  <motion.label
+                    key="drop"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    onDragOver={handleDragOver}
+                    onDragLeave={handleDragLeave}
+                    onDrop={handleDrop}
+                    className={cn(
+                      'flex cursor-pointer items-center gap-4 rounded-3xl border-2 border-dashed p-4 transition-all',
+                      isDragging
+                        ? 'scale-[1.01] border-accent bg-note-peach'
+                        : 'border-border bg-background/60 hover:border-accent/50 hover:bg-note-peach/50'
+                    )}
+                  >
+                    <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-note-peach text-accent">
+                      <ImagePlus size={22} />
                     </span>
-                  ))}
+                    <span>
+                      <span className="block text-sm font-extrabold text-foreground">Add a cover photo</span>
+                      <span className="block text-xs text-muted-foreground">Drop an image here or click to browse</span>
+                    </span>
+                    <input type="file" accept="image/*" onChange={handleImageUpload} className="hidden" />
+                  </motion.label>
+                )}
+              </AnimatePresence>
+
+              {/* Title */}
+              <div className="flex items-start gap-3">
+                <motion.span
+                  key={category}
+                  initial={{ scale: 0.5, rotate: -30 }}
+                  animate={{ scale: 1, rotate: -8 }}
+                  className="mt-1 grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-note-butter text-2xl"
+                >
+                  <MetaIcon size={24} strokeWidth={2.5} className={meta.tone} />
+                </motion.span>
+                <textarea
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  placeholder="Give your note a title…"
+                  rows={1}
+                  className="field-sizing-content w-full resize-none bg-transparent font-display text-3xl font-extrabold leading-tight text-foreground placeholder:text-muted-foreground/50 focus:outline-none sm:text-4xl"
+                />
+              </div>
+
+              {/* Excerpt as sticky note */}
+              <div className="relative rotate-[-0.4deg] rounded-2xl bg-note-peach p-4">
+                <span aria-hidden className="tape bg-accent/50" />
+                <label className="mb-1 flex items-center justify-between text-[11px] font-extrabold uppercase tracking-wider text-accent">
+                  <span>The hook</span>
+                  <span className="font-bold normal-case text-muted-foreground">{excerpt.length}/300</span>
+                </label>
+                <textarea
+                  value={excerpt}
+                  onChange={(e) => setExcerpt(e.target.value)}
+                  placeholder="One line that makes friends want to read more…"
+                  rows={2}
+                  maxLength={300}
+                  className="w-full resize-none bg-transparent font-hand text-2xl leading-snug text-foreground placeholder:text-foreground/35 focus:outline-none"
+                />
+              </div>
+
+              {/* Body */}
+              <RichTextEditor value={content} onChange={setContent} placeholder="Start writing your story here…" />
+
+              {/* Tags */}
+              <div className="rounded-3xl border border-border bg-background/60 p-4">
+                <label className="mb-2 flex items-center gap-1.5 text-[11px] font-extrabold uppercase tracking-wider text-muted-foreground">
+                  <Hash size={13} /> Tags
+                </label>
+                <div className="flex flex-wrap items-center gap-2">
+                  <AnimatePresence>
+                    {tags.map((tag) => (
+                      <motion.span
+                        key={tag}
+                        layout
+                        initial={{ opacity: 0, scale: 0.6 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        exit={{ opacity: 0, scale: 0.6 }}
+                        className="inline-flex items-center gap-1 rounded-full bg-primary px-3 py-1 text-xs font-bold text-primary-foreground"
+                      >
+                        #{tag}
+                        <button
+                          type="button"
+                          onClick={() => setTags(tags.filter((t) => t !== tag))}
+                          aria-label={`Remove ${tag}`}
+                          className="rounded-full hover:bg-white/20"
+                        >
+                          <X size={13} />
+                        </button>
+                      </motion.span>
+                    ))}
+                  </AnimatePresence>
+                  <input
+                    type="text"
+                    value={tagInput}
+                    onChange={(e) => setTagInput(e.target.value)}
+                    onKeyDown={handleAddTag}
+                    placeholder={tags.length ? 'Add another…' : 'Type a tag and press Enter'}
+                    className="min-w-[10rem] flex-1 bg-transparent py-1 text-sm font-semibold text-foreground placeholder:text-muted-foreground focus:outline-none"
+                  />
                 </div>
               </div>
+            </form>
+          </motion.div>
+
+          {/* Inspiration rail */}
+          <aside className="hidden xl:block">
+            <div className="sticky top-28 space-y-4">
+              <div className="flex items-center gap-2 font-display text-sm font-extrabold text-foreground">
+                <Lightbulb size={16} className="text-accent" /> Writing sparks
+              </div>
+              {SPARKS.map((s, i) => (
+                <motion.button
+                  key={s.text}
+                  type="button"
+                  initial={{ opacity: 0, x: 20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: 0.2 + i * 0.08 }}
+                  whileHover={{ y: -4, rotate: 0, scale: 1.03 }}
+                  style={{ rotate: i % 2 ? 1.5 : -1.5 }}
+                  onClick={() => {
+                    if (!title.trim()) setTitle(s.text);
+                    else toast('Spark copied into your mind ✨', { description: s.text });
+                  }}
+                  className={cn(
+                    'block w-full rounded-2xl border border-black/5 p-4 text-left shadow-[var(--shadow-note)] transition-shadow hover:shadow-[var(--shadow-float)]',
+                    ['bg-note-mint', 'bg-note-butter', 'bg-note-sky', 'bg-note-lilac'][i]
+                  )}
+                >
+                  <s.icon size={20} strokeWidth={2.5} className={s.tone} />
+                  <span className="mt-1 block font-hand text-xl leading-tight text-foreground">{s.text}</span>
+                </motion.button>
+              ))}
+              <div className="rounded-2xl border-2 border-dashed border-primary/30 p-4 text-xs font-semibold leading-relaxed text-muted-foreground">
+                <Sparkles size={14} className="mb-1 text-primary" />
+                Every note is reviewed by an ASYV mentor before it appears on the wall.
+              </div>
             </div>
-
-            {/* Action Buttons Bar */}
-            <div className="flex flex-col sm:flex-row items-center gap-4 pt-6 border-t border-border/80">
-              <Button
-                type="button"
-                variant="green"
-                onClick={() => submit('draft')}
-                disabled={saving}
-                className="w-full sm:w-auto"
-              >
-                {saving ? 'Saving...' : 'Save as Draft'}
-              </Button>
-
-              <Button
-                type="button"
-                variant="accent"
-                onClick={() => submit('published')}
-                disabled={saving}
-                className="w-full sm:flex-1"
-              >
-                {saving ? 'Publishing...' : editId ? 'Update & Publish' : 'Publish Essay'}
-              </Button>
-
-              <Button
-                variant="ghost"
-                href="/dashboard"
-                className="w-full sm:w-auto"
-              >
-                Cancel
-              </Button>
-            </div>
-          </form>
+          </aside>
         </div>
       </main>
-      <Footer />
     </>
   );
 }

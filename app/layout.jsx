@@ -1,4 +1,4 @@
-import { Geist, Geist_Mono } from 'next/font/google'
+import { Nunito, Bricolage_Grotesque, Caveat } from 'next/font/google'
 import { Analytics } from '@vercel/analytics/next'
 import { Toaster } from '@/components/ui/sonner'
 import './globals.css'
@@ -12,12 +12,13 @@ if (typeof window === 'undefined') {
   });
 }
 
-const _geist = Geist({ subsets: ["latin"] });
-const _geistMono = Geist_Mono({ subsets: ["latin"] });
+const bodyFont = Nunito({ subsets: ['latin'], variable: '--font-body', display: 'swap' });
+const headingFont = Bricolage_Grotesque({ subsets: ['latin'], variable: '--font-heading', display: 'swap' });
+const handFont = Caveat({ subsets: ['latin'], variable: '--font-handwritten', display: 'swap' });
 
 export const metadata = {
   title: 'ASYV Writing',
-  description: 'ASYV Writing is a platform for sharing thoughtful essays and engaging with writers from around the world.',
+  description: 'ASYV Writing is the creative wall of Agahozo-Shalom Youth Village: where students pin their essays, stories and ideas.',
   generator:'Dominique Savio',
   icons: {
     icon: [
@@ -42,7 +43,7 @@ export const metadata = {
 
 export default function RootLayout({ children }) {
   return (
-    <html lang="en">
+    <html lang="en" className={`${bodyFont.variable} ${headingFont.variable} ${handFont.variable}`}>
       <body className="font-sans antialiased">
         {children}
         <Toaster />

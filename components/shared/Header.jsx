@@ -138,21 +138,18 @@ export function Header() {
   ];
 
   const authLinks = user ? (
-    <div className="flex items-center gap-3">
+    <div className="flex items-center gap-2">
       {/* Quick Search Launcher Button */}
-      <motion.div whileHover={{ scale: 1.08, y: -2 }} whileTap={{ scale: 0.95 }}>
-        <Link
-          href="/posts"
-          className="hidden xl:flex items-center gap-2.5 px-4 py-2 rounded-full bg-secondary/80 border border-border/80 text-muted-foreground hover:text-foreground text-xs font-bold hover:border-primary/50 transition-all cursor-pointer group shadow-xs"
-          title="Search essays (Ctrl+K)"
-        >
-          <Search size={16} className="group-hover:text-primary transition-colors" />
-          <span>Search</span>
-          <kbd className="px-2 py-0.5 text-[10px] font-mono bg-background border border-border rounded-md text-muted-foreground">
-            ⌘K
-          </kbd>
-        </Link>
-      </motion.div>
+      <form action="/posts" className="relative hidden xl:block">
+        <Search size={18} aria-hidden className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
+        <input
+          type="search"
+          name="search"
+          placeholder="Search..."
+          aria-label="Search the writing wall"
+          className="h-11 w-44 rounded-full border border-primary/40 bg-background/50 pl-10 pr-4 text-sm text-foreground outline-none transition-colors placeholder:text-muted-foreground focus:border-primary xl:w-48 2xl:w-56"
+        />
+      </form>
 
       {/* Glass Notifications Button */}
       <div className="relative">
@@ -163,7 +160,7 @@ export function Header() {
             setShowNotifications(!showNotifications);
             setShowAchievements(false);
           }}
-          className="p-3 text-muted-foreground hover:text-foreground bg-secondary/80 hover:bg-secondary border border-border/80 rounded-full transition-all relative cursor-pointer shadow-xs hover:border-primary/50 hover:shadow-md"
+          className="relative rounded-full p-2.5 text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
           title="Notifications"
         >
           <Bell size={19} />
@@ -258,7 +255,7 @@ export function Header() {
             setShowAchievements(!showAchievements);
             setShowNotifications(false);
           }}
-          className="p-3 text-muted-foreground hover:text-foreground bg-secondary/80 hover:bg-secondary border border-border/80 rounded-full transition-all relative cursor-pointer shadow-xs hover:border-amber-500/50 hover:shadow-md"
+          className="relative rounded-full p-2.5 text-muted-foreground transition-colors hover:bg-secondary hover:text-amber-600"
           title="Achievements & Badges"
         >
           <Trophy size={19} className="text-amber-500" />
@@ -320,10 +317,10 @@ export function Header() {
       <motion.div whileHover={{ scale: 1.08, y: -2 }} whileTap={{ scale: 0.95 }}>
         <Link
           href="/dashboard/settings"
-          className="flex items-center gap-3 px-3.5 py-2 rounded-full bg-secondary/70 hover:bg-secondary border border-border/80 hover:border-primary/50 transition-all group cursor-pointer shadow-xs"
+          className="flex items-center gap-2.5 rounded-full px-1.5 py-1 text-foreground transition-colors hover:bg-secondary/70 group"
         >
           <UserAvatar src={user.avatar} name={user.name} size="sm" />
-          <span className="text-xs font-extrabold text-foreground hidden lg:inline group-hover:text-primary transition-colors pr-1">
+          <span className="hidden text-sm font-bold text-foreground transition-colors group-hover:text-primary 2xl:inline">
             {user.name.split(' ')[0]}
           </span>
         </Link>
@@ -333,10 +330,10 @@ export function Header() {
       <motion.div whileHover={{ scale: 1.1, y: -2 }} whileTap={{ scale: 0.92 }}>
         <Link
           href="/create"
-          className="hidden sm:inline-flex items-center gap-2.5 px-6 py-2.5 rounded-full bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-500 text-white font-black text-sm shadow-[0_0_22px_rgba(16,185,129,0.4)] hover:shadow-[0_0_32px_rgba(16,185,129,0.65)] border border-white/30 transition-all duration-300 group cursor-pointer"
+          className="hidden sm:inline-flex items-center gap-2 whitespace-nowrap rounded-full border border-amber-700/20 bg-amber-500 px-4 py-2.5 text-sm font-extrabold text-emerald-950 shadow-sm transition-colors hover:bg-amber-400 group"
         >
           <PenSquare size={16} className="group-hover:rotate-12 transition-transform duration-300" />
-          <span>Write</span>
+          <span className="hidden xl:inline">Pin a note</span>
         </Link>
       </motion.div>
 
@@ -345,16 +342,16 @@ export function Header() {
         whileHover={{ scale: 1.12, y: -2 }}
         whileTap={{ scale: 0.92 }}
         onClick={handleLogout}
-        className="p-3 text-muted-foreground hover:text-rose-500 bg-secondary/60 hover:bg-rose-500/10 border border-border/80 hover:border-rose-500/30 rounded-full transition-all cursor-pointer shadow-xs"
+        className="rounded-full p-2.5 text-muted-foreground transition-colors hover:bg-rose-500/10 hover:text-rose-500"
         title="Sign Out"
       >
         <LogOut size={18} />
       </motion.button>
     </div>
   ) : (
-    <div className="flex items-center gap-3">
+    <div className="flex items-center gap-2">
       <motion.div whileHover={{ scale: 1.08, y: -2 }} whileTap={{ scale: 0.95 }}>
-        <Button variant="green" href="/auth/login" className="rounded-full px-6 py-2.5 text-sm font-extrabold shadow-md">
+        <Button variant="green" href="/auth/login" className="rounded-full px-5 py-2.5 text-sm font-bold shadow-sm">
           Sign In
         </Button>
       </motion.div>
@@ -362,29 +359,21 @@ export function Header() {
       <motion.div whileHover={{ scale: 1.08, y: -2 }} whileTap={{ scale: 0.95 }}>
         <Link
           href="/auth/signup"
-          className="px-6 py-2.5 rounded-full bg-gradient-to-r from-emerald-600 to-teal-500 text-white text-sm font-black shadow-[0_0_22px_rgba(16,185,129,0.45)] hover:shadow-[0_0_32px_rgba(16,185,129,0.7)] transition-all border border-white/20 inline-block"
+          className="inline-block rounded-full bg-accent px-5 py-2.5 text-sm font-bold text-accent-foreground transition-colors hover:bg-accent/90"
         >
-          Get Started
+          Join the wall
         </Link>
       </motion.div>
     </div>
   );
 
   return (
-    <header
-      className={`sticky top-0 z-50 transition-all duration-300 ${
-        scrolled
-          ? 'bg-card/90 backdrop-blur-2xl border-b border-border/80 shadow-xl'
-          : 'bg-background/95 backdrop-blur-xl border-b border-border/60'
-      }`}
-    >
-      {/* Top Ambient Glass Highlight Gradient Accent Line */}
-      <div className="h-[2.5px] w-full bg-gradient-to-r from-emerald-500/40 via-primary to-amber-500/40" />
-
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex justify-between items-center h-20">
+    <header className="sticky top-0 z-50 px-2 pt-2 sm:px-4">
+      <div className={`mx-auto max-w-[1720px] rounded-[1.75rem] border border-border/80 backdrop-blur-xl transition-all duration-300 ${scrolled ? 'bg-card/95 shadow-[var(--shadow-float)]' : 'bg-card/85 shadow-sm'}`}>
+        <div className="mx-auto max-w-[1660px] px-3 sm:px-5 xl:px-7">
+        <div className="flex min-h-[76px] items-center justify-between gap-3">
           {/* Logo Branding */}
-          <Link href="/" className="flex items-center gap-3.5 group">
+          <Link href="/" className="flex min-w-0 shrink-0 items-center gap-3 group">
             <motion.div
               whileHover={{ scale: 1.1, rotate: 4 }}
               whileTap={{ scale: 0.95 }}
@@ -393,82 +382,52 @@ export function Header() {
               <Image
                 src="/agahozo.png"
                 alt="ASYV Writing"
-                width={46}
-                height={46}
-                className="rounded-xl ring-2 ring-primary/30 group-hover:ring-primary transition-all shadow-md"
+                width={54}
+                height={54}
+                className="rounded-full border border-border/70 shadow-sm transition-shadow group-hover:shadow-md"
               />
             </motion.div>
             <div className="flex flex-col">
-              <span className="font-serif text-xl sm:text-2xl font-black text-foreground group-hover:text-primary transition-colors leading-none mb-1">
+              <span className="whitespace-nowrap font-display text-xl font-extrabold leading-none text-primary transition-colors sm:text-2xl">
                 ASYV Writing
               </span>
-              <span className="text-[9.5px] tracking-widest uppercase font-extrabold text-emerald-700 dark:text-emerald-400">
-                Publishing Platform
+              <span className="mt-1 hidden whitespace-nowrap text-sm leading-none text-muted-foreground xl:block">
+                the village writing wall
               </span>
             </div>
           </Link>
 
           {/* Liquid Glass Navigation Pill Items */}
-          <nav className="hidden md:flex items-center gap-2 bg-secondary/70 backdrop-blur-xl p-2 rounded-full border border-border/80 shadow-md">
+          <nav aria-label="Main navigation" className="hidden items-center gap-5 xl:flex 2xl:gap-8">
             {navItems.map((item) => {
               const Icon = item.icon;
               const isActive =
                 pathname === item.href || (item.href !== '/' && pathname?.startsWith(item.href));
 
               return (
-                <motion.div
+                <Link
                   key={item.href}
-                  whileHover={{ scale: 1.08, y: -2 }}
-                  whileTap={{ scale: 0.95 }}
-                  transition={{ type: 'spring', stiffness: 400, damping: 20 }}
+                  href={item.href}
+                  aria-current={isActive ? 'page' : undefined}
+                  className={`relative flex items-center gap-2 whitespace-nowrap py-3 text-[13px] font-bold uppercase text-foreground/75 transition-colors hover:text-foreground after:absolute after:-bottom-2 after:left-0 after:h-[3px] after:w-full after:origin-left after:scale-x-0 after:rounded-full after:bg-accent after:transition-transform hover:after:scale-x-100 ${isActive ? 'text-foreground after:scale-x-100' : ''}`}
                 >
-                  <Link
-                    href={item.href}
-                    className={`relative px-5 py-2.5 rounded-full text-sm font-extrabold transition-all flex items-center gap-2 select-none ${
-                      isActive
-                        ? 'text-foreground'
-                        : 'text-muted-foreground hover:text-foreground hover:bg-secondary/90'
-                    }`}
-                  >
-                    {isActive && (
-                      <motion.div
-                        layoutId="header-active-pill"
-                        className={`absolute inset-0 rounded-full border shadow-sm ${
-                          item.isSuper
-                            ? 'bg-amber-500/20 border-amber-500/50 text-amber-500'
-                            : 'bg-card border-border/90'
-                        }`}
-                        transition={{ type: 'spring', stiffness: 400, damping: 28 }}
-                      />
-                    )}
-                    <span className="relative z-10 flex items-center gap-2">
-                      <Icon
-                        size={17}
-                        className={
-                          item.isSuper
-                            ? 'text-amber-500'
-                            : isActive
-                            ? 'text-primary'
-                            : 'text-muted-foreground'
-                        }
-                      />
-                      <span>{item.label}</span>
-                    </span>
-                  </Link>
-                </motion.div>
+                  <Icon size={17} aria-hidden className={item.isSuper ? 'text-amber-600' : isActive ? 'text-primary' : 'text-muted-foreground'} />
+                  <span>{item.label}</span>
+                </Link>
               );
             })}
           </nav>
 
           {/* Right Header Controls */}
-          <div className="hidden md:flex gap-4 items-center">{authLinks}</div>
+          <div className="hidden items-center gap-2 lg:flex 2xl:gap-3">{authLinks}</div>
 
           {/* Mobile Menu Toggle Button */}
           <motion.button
             whileHover={{ scale: 1.1 }}
             whileTap={{ scale: 0.9 }}
             onClick={() => setIsMenuOpen(!isMenuOpen)}
-            className="md:hidden p-3 text-foreground bg-secondary/80 hover:bg-secondary rounded-full border border-border/80 shadow-xs"
+            aria-label={isMenuOpen ? 'Close navigation menu' : 'Open navigation menu'}
+            className="rounded-full p-2.5 text-foreground transition-colors hover:bg-secondary xl:hidden"
           >
             {isMenuOpen ? <X size={22} /> : <Menu size={22} />}
           </motion.button>
@@ -481,7 +440,8 @@ export function Header() {
               initial={{ opacity: 0, height: 0 }}
               animate={{ opacity: 1, height: 'auto' }}
               exit={{ opacity: 0, height: 0 }}
-              className="md:hidden pb-5 border-t border-border/80 pt-3"
+              aria-label="Mobile navigation"
+              className="xl:hidden pb-5 border-t border-border/80 pt-3"
             >
               <div className="flex flex-col gap-2.5 text-sm font-medium">
                 {navItems.map((item) => {
@@ -492,7 +452,7 @@ export function Header() {
                       key={item.href}
                       href={item.href}
                       onClick={() => setIsMenuOpen(false)}
-                      className={`px-4 py-3.5 rounded-2xl flex items-center gap-3.5 font-bold transition-all ${
+                      className={`flex items-center gap-3.5 rounded-xl px-4 py-3 font-semibold transition-colors ${
                         isActive
                           ? 'bg-primary/15 text-primary border border-primary/30'
                           : 'text-foreground hover:bg-secondary'
@@ -526,9 +486,9 @@ export function Header() {
                     <Link
                       href="/auth/signup"
                       onClick={() => setIsMenuOpen(false)}
-                      className="px-4 py-3.5 text-center rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-500 text-white font-extrabold shadow-md"
+                      className="px-4 py-3.5 text-center rounded-2xl bg-accent text-accent-foreground font-extrabold shadow-md"
                     >
-                      Get Started
+                      Join the wall
                     </Link>
                   </div>
                 )}
@@ -536,6 +496,7 @@ export function Header() {
             </motion.nav>
           )}
         </AnimatePresence>
+      </div>
       </div>
     </header>
   );

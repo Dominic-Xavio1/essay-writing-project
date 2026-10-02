@@ -52,7 +52,7 @@ export function RichTextEditor({
       reader.onload = (event) => {
         const img = document.createElement('img');
         img.src = event.target?.result;
-        img.className = 'max-w-full h-auto rounded-xl my-6 shadow-md border border-border';
+        img.className = 'max-w-full h-auto rounded-2xl my-6 shadow-md border border-border';
         img.style.maxWidth = '100%';
 
         const range = window.getSelection()?.getRangeAt(0);
@@ -98,9 +98,9 @@ export function RichTextEditor({
   };
 
   return (
-    <div className="border border-border/80 rounded-2xl bg-card shadow-xs">
+    <div className="rounded-3xl border-2 border-dashed border-border/80 bg-background/60 transition-colors focus-within:border-primary/40 focus-within:bg-card">
       {/* Sticky Editorial Toolbar */}
-      <div className="sticky top-16 z-20 bg-card border-b border-border/80 p-3 sm:p-4 rounded-t-2xl">
+      <div className="sticky top-24 z-20 m-2 rounded-2xl border border-border bg-card/90 p-2 shadow-sm backdrop-blur-md">
         <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 text-muted-foreground">
           {/* Formatting group */}
           <div className="flex items-center gap-1 border-r border-border pr-2">
@@ -108,7 +108,7 @@ export function RichTextEditor({
               type="button"
               onClick={() => executeCommand('bold')}
               title="Bold"
-              className="p-2 hover:text-foreground hover:bg-secondary rounded-lg transition-colors"
+              className="p-2 rounded-xl hover:text-primary hover:bg-note-mint hover:-translate-y-0.5 transition-all"
             >
               <Bold size={17} />
             </button>
@@ -116,7 +116,7 @@ export function RichTextEditor({
               type="button"
               onClick={() => executeCommand('italic')}
               title="Italic"
-              className="p-2 hover:text-foreground hover:bg-secondary rounded-lg transition-colors"
+              className="p-2 rounded-xl hover:text-primary hover:bg-note-mint hover:-translate-y-0.5 transition-all"
             >
               <Italic size={17} />
             </button>
@@ -124,7 +124,7 @@ export function RichTextEditor({
               type="button"
               onClick={() => executeCommand('underline')}
               title="Underline"
-              className="p-2 hover:text-foreground hover:bg-secondary rounded-lg transition-colors"
+              className="p-2 rounded-xl hover:text-primary hover:bg-note-mint hover:-translate-y-0.5 transition-all"
             >
               <Underline size={17} />
             </button>
@@ -132,7 +132,7 @@ export function RichTextEditor({
               type="button"
               onClick={() => executeCommand('strikethrough')}
               title="Strikethrough"
-              className="p-2 hover:text-foreground hover:bg-secondary rounded-lg transition-colors"
+              className="p-2 rounded-xl hover:text-primary hover:bg-note-mint hover:-translate-y-0.5 transition-all"
             >
               <Strikethrough size={17} />
             </button>
@@ -146,7 +146,7 @@ export function RichTextEditor({
                   executeCommand('formatBlock', e.target.value);
                 }
               }}
-              className="px-2.5 py-1.5 text-xs font-semibold bg-secondary text-foreground border border-border rounded-lg focus:outline-none cursor-pointer"
+              className="px-2.5 py-1.5 text-xs font-bold bg-secondary text-foreground border border-border rounded-xl focus:outline-none cursor-pointer"
               defaultValue=""
             >
               <option value="">Paragraph</option>
@@ -162,7 +162,7 @@ export function RichTextEditor({
               type="button"
               onClick={() => executeCommand('insertUnorderedList')}
               title="Bullet List"
-              className="p-2 hover:text-foreground hover:bg-secondary rounded-lg transition-colors"
+              className="p-2 rounded-xl hover:text-primary hover:bg-note-mint hover:-translate-y-0.5 transition-all"
             >
               <List size={17} />
             </button>
@@ -170,7 +170,7 @@ export function RichTextEditor({
               type="button"
               onClick={() => executeCommand('insertOrderedList')}
               title="Numbered List"
-              className="p-2 hover:text-foreground hover:bg-secondary rounded-lg transition-colors"
+              className="p-2 rounded-xl hover:text-primary hover:bg-note-mint hover:-translate-y-0.5 transition-all"
             >
               <ListOrdered size={17} />
             </button>
@@ -178,7 +178,7 @@ export function RichTextEditor({
               type="button"
               onClick={() => executeCommand('formatBlock', '<blockquote>')}
               title="Quote"
-              className="p-2 hover:text-foreground hover:bg-secondary rounded-lg transition-colors"
+              className="p-2 rounded-xl hover:text-primary hover:bg-note-mint hover:-translate-y-0.5 transition-all"
             >
               <Quote size={17} />
             </button>
@@ -190,7 +190,7 @@ export function RichTextEditor({
               type="button"
               onClick={() => executeCommand('justifyLeft')}
               title="Align Left"
-              className="p-2 hover:text-foreground hover:bg-secondary rounded-lg transition-colors"
+              className="p-2 rounded-xl hover:text-primary hover:bg-note-mint hover:-translate-y-0.5 transition-all"
             >
               <AlignLeft size={17} />
             </button>
@@ -198,7 +198,7 @@ export function RichTextEditor({
               type="button"
               onClick={() => executeCommand('justifyCenter')}
               title="Align Center"
-              className="p-2 hover:text-foreground hover:bg-secondary rounded-lg transition-colors"
+              className="p-2 rounded-xl hover:text-primary hover:bg-note-mint hover:-translate-y-0.5 transition-all"
             >
               <AlignCenter size={17} />
             </button>
@@ -206,7 +206,7 @@ export function RichTextEditor({
               type="button"
               onClick={() => executeCommand('justifyRight')}
               title="Align Right"
-              className="p-2 hover:text-foreground hover:bg-secondary rounded-lg transition-colors"
+              className="p-2 rounded-xl hover:text-primary hover:bg-note-mint hover:-translate-y-0.5 transition-all"
             >
               <AlignRight size={17} />
             </button>
@@ -218,7 +218,7 @@ export function RichTextEditor({
               type="button"
               onClick={insertLink}
               title="Insert Link"
-              className="p-2 hover:text-foreground hover:bg-secondary rounded-lg transition-colors"
+              className="p-2 rounded-xl hover:text-primary hover:bg-note-mint hover:-translate-y-0.5 transition-all"
             >
               <Link2 size={17} />
             </button>
@@ -226,7 +226,7 @@ export function RichTextEditor({
               type="button"
               onClick={insertImage}
               title="Insert Image"
-              className="p-2 hover:text-foreground hover:bg-secondary rounded-lg transition-colors"
+              className="p-2 rounded-xl hover:text-primary hover:bg-note-mint hover:-translate-y-0.5 transition-all"
             >
               <ImageIcon size={17} />
             </button>
@@ -246,7 +246,7 @@ export function RichTextEditor({
               onClick={handleUndo}
               disabled={historyIndex <= 0}
               title="Undo"
-              className="p-2 hover:text-foreground hover:bg-secondary rounded-lg transition-colors disabled:opacity-30"
+              className="p-2 rounded-xl hover:text-primary hover:bg-note-mint hover:-translate-y-0.5 transition-all disabled:opacity-30"
             >
               <Undo2 size={17} />
             </button>
@@ -255,7 +255,7 @@ export function RichTextEditor({
               onClick={handleRedo}
               disabled={historyIndex >= history.length - 1}
               title="Redo"
-              className="p-2 hover:text-foreground hover:bg-secondary rounded-lg transition-colors disabled:opacity-30"
+              className="p-2 rounded-xl hover:text-primary hover:bg-note-mint hover:-translate-y-0.5 transition-all disabled:opacity-30"
             >
               <Redo2 size={17} />
             </button>
@@ -266,7 +266,7 @@ export function RichTextEditor({
       {/* Editor Content Area */}
       <div className="relative min-h-[380px]">
         {!value && (
-          <div className="absolute top-6 left-6 sm:top-8 sm:left-8 text-muted-foreground/50 italic pointer-events-none select-none">
+          <div className="absolute top-6 left-6 sm:top-8 sm:left-8 font-hand text-2xl text-muted-foreground/60 pointer-events-none select-none">
             {placeholder}
           </div>
         )}
@@ -275,14 +275,14 @@ export function RichTextEditor({
           contentEditable
           onInput={updateContent}
           suppressContentEditableWarning
-          className="min-h-[380px] p-6 sm:p-8 focus:outline-none font-sans text-lg leading-relaxed text-foreground prose prose-zinc dark:prose-invert max-w-none"
+          className="min-h-[380px] p-6 sm:p-8 focus:outline-none editor-surface font-sans text-lg leading-relaxed text-foreground max-w-none"
           style={{ outline: 'none' }}
         />
       </div>
 
       {/* Editorial Footer Info */}
-      <div className="bg-secondary/40 border-t border-border/60 px-6 py-2.5 flex items-center justify-between text-xs text-muted-foreground font-medium rounded-b-2xl">
-        <span>Editorial Rich Text Editor</span>
+      <div className="flex items-center justify-between border-t border-dashed border-border px-6 py-2.5 text-xs font-bold text-muted-foreground">
+        <span>Canvas sheet</span>
         <span>{editorRef.current?.textContent?.length || 0} characters</span>
       </div>
     </div>
