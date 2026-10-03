@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import {
   Bold,
   Italic,
@@ -27,6 +27,16 @@ export function RichTextEditor({
   const fileInputRef = useRef(null);
   const [history, setHistory] = useState([value]);
   const [historyIndex, setHistoryIndex] = useState(0);
+
+  useEffect(() => {
+    const editor = editorRef.current;
+    const nextValue = value || '';
+    if (!editor || editor.innerHTML === nextValue) return;
+
+    editor.innerHTML = nextValue;
+    setHistory([nextValue]);
+    setHistoryIndex(0);
+  }, [value]);
 
   const executeCommand = (command, value = false) => {
     document.execCommand(command, false, value);

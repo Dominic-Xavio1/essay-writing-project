@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { Header } from '@/components/shared/Header';
 import { Footer } from '@/components/shared/Footer';
+import { NoteBuddy } from '@/components/shared/NoteBuddy';
 import { EssayCard, EssayCardSkeleton } from '@/components/board/EssayCard';
 import { MasonryBoard } from '@/components/board/MasonryBoard';
 import { FreeformBoard } from '@/components/board/FreeformBoard';
@@ -22,7 +23,6 @@ import {
   Hash,
   Share2,
   Check,
-  StickyNote,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'sonner';
@@ -197,9 +197,12 @@ export default function PostsPage() {
                   key={selectedCategory}
                   initial={{ scale: 0.6, rotate: -20 }}
                   animate={{ scale: 1, rotate: -6 }}
-                  className="grid h-16 w-16 shrink-0 place-items-center rounded-2xl bg-note-butter text-3xl shadow-sm"
+                  className="relative grid h-16 w-16 shrink-0 place-items-center"
                 >
-                  <ActiveIcon size={30} strokeWidth={2.5} className={activeMeta.tone} />
+                  <NoteBuddy size="md" />
+                  <span className="absolute -right-1 -top-1 grid h-7 w-7 place-items-center rounded-full border border-border bg-white text-primary shadow-sm">
+                    <ActiveIcon size={13} strokeWidth={2.2} aria-hidden />
+                  </span>
                 </motion.div>
                 <div>
                   <p className="font-hand text-xl text-accent">ASYV Writing board</p>
@@ -401,7 +404,7 @@ export default function PostsPage() {
               animate={{ opacity: 1, scale: 1 }}
               className="mx-auto max-w-md rounded-[2rem] border-2 border-dashed border-border bg-card/80 p-10 text-center"
             >
-              <StickyNote size={48} className="mx-auto animate-bob text-accent" />
+              <NoteBuddy size="lg" className="mx-auto mb-2" />
               <h3 className="mt-4 font-display text-xl font-extrabold text-foreground">No notes here yet</h3>
               <p className="mt-1 text-sm text-muted-foreground">
                 Try another board or tag — or be the first to pin something!

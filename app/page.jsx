@@ -6,6 +6,7 @@ import { motion } from 'framer-motion';
 import { ArrowRight, Flame, PenLine, Sparkles, Users, Heart, StickyNote, Compass, Pin } from 'lucide-react';
 import { Header } from '@/components/shared/Header';
 import { Footer } from '@/components/shared/Footer';
+import { NoteBuddy } from '@/components/shared/NoteBuddy';
 import { EssayCard, EssayCardSkeleton } from '@/components/board/EssayCard';
 import { MasonryBoard } from '@/components/board/MasonryBoard';
 import { api } from '@/lib/api-client';
@@ -265,7 +266,6 @@ export default function Home() {
     </div>
   );
 }
-
 function SectionTitle({ kicker, title, href, cta }) {
   return (
     <div className="mb-8 flex items-end justify-between gap-4">
@@ -321,20 +321,3 @@ function EmptyWall() {
   );
 }
 
-function NoteBuddy() {
-  return (
-    <div aria-hidden="true" className="relative grid h-12 w-12 shrink-0 place-items-center">
-      <span className="absolute h-9 w-8 -rotate-6 rounded-md border border-primary/20 bg-primary/5" />
-      <span className="relative grid h-9 w-8 rotate-3 place-items-center rounded-md border border-primary/30 bg-white shadow-sm">
-        <span className="absolute -top-1 h-1.5 w-2 rounded-full bg-primary/70" />
-        <span className="mt-1.5 flex items-center gap-1">
-          <span className="h-1 w-1 rounded-full bg-foreground" />
-          <span className="h-1 w-1 rounded-full bg-foreground" />
-        </span>
-        <span className="-mt-1 h-1.5 w-2.5 rounded-b-full border-b border-primary" />
-      </span>
-      <span className="absolute bottom-1 left-0 h-2 w-1.5 -rotate-12 rounded-full bg-primary/70" />
-      <span className="absolute bottom-1 right-0 h-2 w-1.5 rotate-12 rounded-full bg-primary/70" />
-    </div>
-  );
-}

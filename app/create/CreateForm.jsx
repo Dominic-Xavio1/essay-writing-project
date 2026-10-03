@@ -47,14 +47,19 @@ export function CreateForm() {
   const [tagInput, setTagInput] = useState('');
   const [featuredImage, setFeaturedImage] = useState(null);
   const [saving, setSaving] = useState(false);
+  const [loadingEdit, setLoadingEdit] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
 
   useEffect(() => {
     if (!editId) return;
+    let isCurrentRequest = true;
+    setLoadingEdit(true);
     api
       .getPost(editId)
       .then((data) => {
+        if (!isCurrentRequest) return;
         const p = data.post;
+        if (!p) throw new Error('Essay not found');
         setTitle(p.title || '');
         setExcerpt(p.excerpt || '');
         setContent(p.content || '');
@@ -62,7 +67,16 @@ export function CreateForm() {
         setTags(p.tags || []);
         setFeaturedImage(p.featured_image || null);
       })
-      .catch(() => toast.error('Failed to load essay'));
+      .catch((error) => {
+        if (isCurrentRequest) toast.error(error instanceof Error ? error.message : 'Failed to load essay');
+      })
+      .finally(() => {
+        if (isCurrentRequest) setLoadingEdit(false);
+      });
+
+    return () => {
+      isCurrentRequest = false;
+    };
   }, [editId]);
 
   const plainTextContent = content.replace(/<[^>]*>/g, '').trim();
@@ -226,7 +240,7 @@ export function CreateForm() {
                   whileHover={{ y: -2 }}
                   whileTap={{ scale: 0.95 }}
                   onClick={() => submit('draft')}
-                  disabled={saving}
+                  disabled={saving || loadingEdit}
                   className="inline-flex items-center gap-1.5 rounded-xl border-2 border-primary/20 px-3 py-2 text-xs font-extrabold text-primary transition-colors hover:border-primary disabled:opacity-50 sm:px-4"
                 >
                   <Save size={15} />
@@ -237,7 +251,7 @@ export function CreateForm() {
                   whileHover={{ y: -2, scale: 1.04 }}
                   whileTap={{ scale: 0.95 }}
                   onClick={() => submit('published')}
-                  disabled={saving}
+                  disabled={saving || loadingEdit}
                   className="inline-flex items-center gap-1.5 rounded-xl bg-accent px-4 py-2 text-xs font-extrabold text-accent-foreground shadow-[0_10px_22px_-10px_rgba(249,115,22,0.8)] disabled:opacity-50"
                 >
                   {saving ? <Loader2 size={15} className="animate-spin" /> : <Send size={15} />}
@@ -363,7 +377,14 @@ export function CreateForm() {
               </div>
 
               {/* Body */}
-              <RichTextEditor value={content} onChange={setContent} placeholder="Start writing your story here…" />
+              {loadingEdit ? (
+                <div className="flex min-h-[380px] items-center justify-center gap-2 rounded-3xl border border-dashed border-border bg-background/60 text-sm font-semibold text-muted-foreground" role="status">
+                  <Loader2 size={17} className="animate-spin text-primary" />
+                  Loading your saved note…
+                </div>
+              ) : (
+                <RichTextEditor value={content} onChange={setContent} placeholder="Start writing your story here…" />
+              )}
 
               {/* Tags */}
               <div className="rounded-3xl border border-border bg-background/60 p-4">

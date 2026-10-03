@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { Header } from '@/components/shared/Header';
 import { Footer } from '@/components/shared/Footer';
+import { ReadingBuddy } from '@/components/shared/ReadingBuddy';
 import { api } from '@/lib/api-client';
 import { Button } from '@/components/ui/customButton';
 import { ClapButton } from '@/components/ui/clap-button';
@@ -30,6 +31,8 @@ import {
   TrendingUp,
   X,
   Heart,
+  BookOpen,
+  Quote,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'sonner';
@@ -296,18 +299,46 @@ export default function PostDetailPage() {
     xlarge: 'text-xl leading-loose',
   };
 
+  const READING_MOMENTS = [
+    {
+      buddy: 'mouse',
+      mood: 'curious',
+      quote: 'Wonder is the feeling of a philosopher, and philosophy begins in wonder.',
+      author: 'Socrates, via Plato',
+    },
+    {
+      buddy: 'monkey',
+      mood: 'focused',
+      quote: 'The important thing is not to stop questioning. Curiosity has its own reason for existing.',
+      author: 'Albert Einstein',
+    },
+    {
+      buddy: 'hippo',
+      mood: 'determined',
+      quote: 'The unexamined life is not worth living.',
+      author: 'Socrates',
+    },
+    {
+      buddy: 'mouse',
+      mood: 'joyful',
+      quote: 'Life is like riding a bicycle. To keep your balance, you must keep moving.',
+      author: 'Albert Einstein',
+    },
+  ];
+
   // Sort comments
   const sortedComments = [...comments].sort((a, b) => {
     if (commentSort === 'likes') return (b.likes || 0) - (a.likes || 0);
     return new Date(b.created_at) - new Date(a.created_at);
   });
+  const readingMoment = READING_MOMENTS[Math.min(3, Math.floor(scrollProgress / 25))];
 
   return (
     <>
       {/* Scroll Progress Bar */}
       <div className="fixed top-0 left-0 right-0 h-1 bg-secondary z-50">
         <div
-          className="h-full bg-gradient-to-r from-emerald-500 to-teal-400 transition-all duration-150 ease-out shadow-[0_0_10px_rgba(16,185,129,0.5)]"
+          className="h-full bg-primary transition-all duration-150 ease-out"
           style={{ width: `${scrollProgress}%` }}
         />
       </div>
@@ -315,48 +346,58 @@ export default function PostDetailPage() {
       {!focusMode && <Header />}
 
       <main className="min-h-screen bg-background pb-32">
-        {/* Modern Editorial Featured Image Hero (Fixes Blur/Quality Issues) */}
+        {/* Pinned-print featured image */}
         {post.featured_image && (
-          <div className="relative w-full max-w-5xl mx-auto pt-6 sm:pt-10 px-4 sm:px-6">
-            <div className="relative group overflow-hidden rounded-3xl border border-border/80 shadow-2xl bg-secondary/50 backdrop-blur-md">
-              {/* High resolution Ambient Blurred Glow Behind Image */}
-              <div
-                className="absolute inset-0 filter blur-3xl opacity-35 scale-110 pointer-events-none transition-transform duration-700 group-hover:scale-125"
-                style={{
-                  backgroundImage: `url(${post.featured_image})`,
-                  backgroundSize: 'cover',
-                  backgroundPosition: 'center',
-                }}
-              />
-
-              {/* Pristine Crisp Foreground Image Container */}
-              <div className="relative w-full h-[320px] sm:h-[420px] md:h-[500px] overflow-hidden flex items-center justify-center bg-black/5">
+          <figure className="relative mx-auto w-full max-w-5xl px-4 pt-8 sm:px-6 sm:pt-12">
+            <span aria-hidden="true" className="absolute left-[18%] top-7 z-10 hidden h-6 w-20 -rotate-6 rounded-sm bg-primary/20 shadow-sm sm:block" />
+            <div className="group relative overflow-hidden rounded-[1.75rem] border border-border bg-white p-2 shadow-[0_18px_55px_-32px_rgba(26,33,24,0.45)] sm:p-3">
+              <div className="relative flex max-h-[520px] min-h-[240px] items-center justify-center overflow-hidden rounded-[1.25rem] bg-secondary/50 sm:min-h-[320px]">
                 <img
                   src={post.featured_image}
                   alt={post.title}
-                  className="w-full h-full object-cover object-center group-hover:scale-103 transition-transform duration-700 ease-out filter contrast-[1.02] saturate-[1.05]"
-                  style={{ imageRendering: '-webkit-optimize-contrast' }}
+                  className="max-h-[520px] w-full object-contain transition-transform duration-500 ease-out group-hover:scale-[1.015]"
                 />
 
-                {/* Subtle Gradient Vignette Overlays for Depth */}
-                <div className="absolute inset-0 bg-gradient-to-t from-background/90 via-background/20 to-transparent opacity-90" />
-                <div className="absolute inset-0 bg-gradient-to-b from-black/30 via-transparent to-transparent opacity-60" />
-
-                {/* Lightbox Zoom Trigger Overlay */}
                 <button
                   onClick={() => setLightboxOpen(true)}
-                  className="absolute bottom-4 right-4 p-2.5 rounded-full bg-card/80 backdrop-blur-md border border-border text-foreground opacity-0 group-hover:opacity-100 transition-opacity duration-300 hover:scale-110 shadow-lg"
+                  aria-label="View full-size image"
+                  className="absolute bottom-3 right-3 grid h-10 w-10 place-items-center rounded-full border border-border bg-white/95 text-foreground shadow-sm transition-colors hover:bg-primary hover:text-white sm:bottom-4 sm:right-4"
                   title="View full resolution image"
                 >
                   <Maximize2 size={16} />
                 </button>
               </div>
             </div>
-          </div>
+            <figcaption className="mt-3 flex items-center justify-center gap-2 text-xs font-medium text-muted-foreground">
+              <span className="h-px w-5 bg-primary/30" />
+              A moment from the story
+              <span className="h-px w-5 bg-primary/30" />
+            </figcaption>
+          </figure>
         )}
 
         {/* Article Container */}
-        <article className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 pt-8 pb-16">
+        <div className={`mx-auto px-4 sm:px-6 lg:px-8 ${focusMode ? 'max-w-3xl' : 'grid max-w-7xl grid-cols-1 gap-8 xl:grid-cols-[minmax(0,1fr)_minmax(0,48rem)_minmax(0,1fr)]'}`}>
+          {!focusMode && (
+            <aside aria-label="Reading companion" className="fixed left-4 top-1/2 z-30 hidden -translate-y-1/2 flex-col items-center text-center xl:flex">
+              <ReadingBuddy variant={readingMoment.buddy} mood={readingMoment.mood} progress={scrollProgress} />
+              <p className="mt-2 text-[10px] font-extrabold uppercase text-primary">{readingMoment.mood === 'joyful' ? 'You made it!' : 'Reading buddy'}</p>
+              <div
+                className="mt-2 flex items-center gap-2 rounded-full border border-border bg-white px-3 py-2 text-xs text-muted-foreground shadow-sm"
+                role="progressbar"
+                aria-label="Article reading progress"
+                aria-valuemin={0}
+                aria-valuemax={100}
+                aria-valuenow={Math.round(scrollProgress)}
+              >
+                <BookOpen size={14} className="text-primary" aria-hidden="true" />
+                <span className="font-bold text-foreground">{Math.round(scrollProgress)}%</span>
+                <span>{readingMoment.mood === 'joyful' ? 'done' : 'read'}</span>
+              </div>
+            </aside>
+          )}
+
+        <article className={`w-full max-w-3xl pt-8 pb-16 ${focusMode ? 'mx-auto' : 'mx-auto xl:col-start-2'}`}>
           {/* Category & Tags */}
           <div className="mb-6 flex flex-wrap gap-2 items-center">
             <span className="text-xs font-extrabold uppercase tracking-wider bg-primary/10 text-primary px-3.5 py-1.5 rounded-full border border-primary/20 shadow-xs">
@@ -797,6 +838,20 @@ export default function PostDetailPage() {
             </section>
           )}
         </article>
+
+          {!focusMode && (
+            <aside aria-label="Reading inspiration" className="fixed right-4 top-1/2 z-30 hidden w-40 -translate-y-1/2 xl:block">
+              <div className="rounded-2xl border border-border bg-white/95 p-4 shadow-sm">
+                <Quote size={17} className="text-primary/70" aria-hidden="true" />
+                <p className="mt-3 font-hand text-lg leading-snug text-foreground">{readingMoment.quote}</p>
+                <span className="mt-3 block text-[10px] font-bold uppercase text-muted-foreground">{readingMoment.author}</span>
+              </div>
+              <div aria-hidden="true" className="ml-6 mt-3 flex h-9 w-9 rotate-12 items-center justify-center rounded-xl border border-primary/15 bg-primary/5 text-primary/70">
+                <Heart size={16} />
+              </div>
+            </aside>
+          )}
+        </div>
       </main>
 
       {/* Floating Sticky Reader Action Bar */}
