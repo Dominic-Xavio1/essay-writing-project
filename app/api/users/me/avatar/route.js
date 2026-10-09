@@ -13,18 +13,18 @@ export async function POST(req) {
     const file = formData.get('avatar');
 
     if (!file || typeof file === 'string') {
-      return err('No avatar file provided');
+      return err('No avatar file provided', 400);
     }
 
     // 1. File Validation
     const allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
     if (!allowedTypes.includes(file.type)) {
-      return err('Invalid file type. Only JPEG, PNG, WebP, and GIF images are allowed.');
+      return err('Invalid file type. Only JPEG, PNG, WebP, and GIF images are allowed.', 400);
     }
 
     const maxSizeInBytes = 5 * 1024 * 1024; // 5MB
     if (file.size > maxSizeInBytes) {
-      return err('File is too large. Maximum file size is 5MB.');
+      return err('File is too large. Maximum file size is 5MB.', 400);
     }
 
     // 2. Storage Handling

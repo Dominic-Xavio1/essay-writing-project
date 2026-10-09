@@ -7,7 +7,7 @@ export async function PATCH(req) {
   if (!userId) return err('Unauthorized', 401);
 
   const body = await parseBody(req);
-  if (!body) return err('Invalid request body');
+  if (!body) return err('Invalid request body', 400);
 
   await updateUserSettings(userId, body);
   const user = await formatUser(userId);

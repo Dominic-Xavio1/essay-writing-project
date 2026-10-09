@@ -1,10 +1,12 @@
-import { ok, err } from '@/lib/api-utils';
+import { ok, err, isValidUUID } from '@/lib/api-utils';
 import { getAuthorProfile } from '@/lib/services/users';
 import { getSession } from '@/lib/session';
 import { listPosts } from '@/lib/services/posts';
 
 export async function GET(_req, { params }) {
   const { id } = await params;
+  if (!isValidUUID(id)) return err('Invalid ID format', 400);
+
   const session = await getSession();
   const viewerId = session.isLoggedIn ? session.userId : undefined;
 

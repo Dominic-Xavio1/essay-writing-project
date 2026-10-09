@@ -1,4 +1,4 @@
-import { ok, err, parseBody } from '@/lib/api-utils';
+import { ok, err, parseBody, isValidUUID } from '@/lib/api-utils';
 import { requireSuperuser } from '@/lib/auth';
 import { moderatePost } from '@/lib/services/posts';
 
@@ -7,12 +7,16 @@ export async function PATCH(req, { params }) {
   if (!superuser) return err('Forbidden: Superuser access required', 403);
 
   const { id } = await params;
+  if (!isValidUUID(id)) return err('Invalid ID format', 400);
+
   const body = await parseBody(req);
+  if (!body) return err('Invalid request body', 400);
+
   const status = body?.status;
   const feedback = body?.feedback || '';
 
   if (!['approved', 'rejected', 'pending', 'draft'].includes(status)) {
-    return err('Invalid status. Expected approved, rejected, pending, or draft.');
+    return err('Invalid status. Expected approved, rejected, pending, or draft.', 400);
   }
 
   const post = await moderatePost(id, status, feedback);

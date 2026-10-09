@@ -1,21 +1,24 @@
-import { ok, err, parseBody } from '@/lib/api-utils';
+import { ok, err, parseBody, isValidUUID } from '@/lib/api-utils';
 import { requireAuth } from '@/lib/auth';
 import { query } from '@/lib/db';
+import { isPostPublished } from '@/lib/services/posts';
 
 export async function POST(req, { params }) {
   const resolvedParams = await params;
   const postId = resolvedParams?.id;
-  if (!postId) return err('Post ID required', 400);
+  if (!postId || !isValidUUID(postId)) return err('Valid Post ID required', 400);
+
+  const published = await isPostPublished(postId);
+  if (!published) return err('Post not found or unavailable', 404);
 
   const userId = await requireAuth();
   const body = (await parseBody(req)) || {};
 
   const sessionId = body.sessionId || `session_${Math.random().toString(36).substring(2, 10)}`;
-  const readDuration = Number(body.readDuration) || 5;
+  const readDuration = Math.min(86400, Math.max(0, Number(body.readDuration) || 5));
   const scrollDepth = Math.min(100, Math.max(0, Number(body.scrollDepth) || 0));
 
   try {
-    // Check if a read event exists for this post & session
     const { rows } = await query(
       `SELECT id, read_duration, scroll_depth FROM post_reads 
        WHERE post_id = $1 AND (session_id = $2 OR (user_id IS NOT NULL AND user_id = $3))

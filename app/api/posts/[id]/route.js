@@ -1,4 +1,4 @@
-import { ok, err, parseBody, calcReadTime } from '@/lib/api-utils';
+import { ok, err, parseBody, calcReadTime, isValidUUID } from '@/lib/api-utils';
 import { requireAuth } from '@/lib/auth';
 import { getSession } from '@/lib/session';
 import {
@@ -10,12 +10,20 @@ import {
 
 export async function GET(_req, { params }) {
   const { id } = await params;
+  if (!isValidUUID(id)) return err('Invalid ID format', 400);
+
   const session = await getSession();
   const viewerId = session.isLoggedIn ? session.userId : undefined;
+  const isSuperuser = Boolean(session.is_superuser);
 
   const post = await getPostById(id, viewerId);
   if (!post) return err('Post not found', 404);
-  if (post.status === 'draft' && post.author.id !== viewerId) {
+
+  // Issue 1: Block public access to pending, rejected, or draft posts
+  const isPublic = post.status === 'approved' || post.status === 'published';
+  const isAuthor = viewerId && post.author.id === viewerId;
+
+  if (!isPublic && !isAuthor && !isSuperuser) {
     return err('Post not found', 404);
   }
 
@@ -28,8 +36,10 @@ export async function PATCH(req, { params }) {
   if (!userId) return err('Unauthorized', 401);
 
   const { id } = await params;
+  if (!isValidUUID(id)) return err('Invalid ID format', 400);
+
   const body = await parseBody(req);
-  if (!body) return err('Invalid request body');
+  if (!body) return err('Invalid request body', 400);
 
   const read_time = body.content ? calcReadTime(body.content) : undefined;
   const post = await updatePost(id, userId, { ...body, read_time });
@@ -43,6 +53,8 @@ export async function DELETE(_req, { params }) {
   if (!userId) return err('Unauthorized', 401);
 
   const { id } = await params;
+  if (!isValidUUID(id)) return err('Invalid ID format', 400);
+
   const deleted = await deletePost(id, userId);
   if (!deleted) return err('Post not found or unauthorized', 404);
 

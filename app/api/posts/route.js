@@ -25,11 +25,12 @@ export async function POST(req) {
   if (!userId) return err('Unauthorized', 401);
 
   const body = await parseBody(req);
-  if (!body?.title) return err('Title is required');
+  if (!body) return err('Invalid request body', 400);
+  if (!body?.title) return err('Title is required', 400);
 
   const status = body.status === 'draft' ? 'draft' : 'published';
   if (status === 'published' && (!body.excerpt || !body.content)) {
-    return err('Excerpt and content are required to publish');
+    return err('Excerpt and content are required to publish', 400);
   }
 
   const post = await createPost(userId, {
