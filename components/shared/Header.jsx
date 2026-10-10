@@ -140,7 +140,7 @@ export function Header() {
   const authLinks = user ? (
     <div className="flex items-center gap-2">
       {/* Quick Search Launcher Button */}
-      <form action="/posts" className="relative hidden xl:block">
+      {/* <form action="/posts" className="relative hidden xl:block">
         <Search size={18} aria-hidden className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
         <input
           type="search"
@@ -149,7 +149,7 @@ export function Header() {
           aria-label="Search the writing wall"
           className="h-11 w-44 rounded-full border border-primary/40 bg-background/50 pl-10 pr-4 text-sm text-foreground outline-none transition-colors placeholder:text-muted-foreground focus:border-primary xl:w-48 2xl:w-56"
         />
-      </form>
+      </form> */}
 
       {/* Glass Notifications Button */}
       <div className="relative">

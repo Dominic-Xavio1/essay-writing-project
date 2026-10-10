@@ -7,7 +7,6 @@ import { Header } from '@/components/shared/Header';
 import { Footer } from '@/components/shared/Footer';
 import { ReadingBuddy } from '@/components/shared/ReadingBuddy';
 import { api } from '@/lib/api-client';
-import { sanitizeHtml } from '@/lib/sanitize';
 import { Button } from '@/components/ui/customButton';
 import { ClapButton } from '@/components/ui/clap-button';
 import { AuthorHoverCard } from '@/components/ui/author-hover-card';
@@ -467,7 +466,7 @@ export default function PostDetailPage() {
           {/* Article Body Content */}
           <div
             className={`prose prose-zinc dark:prose-invert max-w-none mb-16 text-foreground font-sans ${textSizeClasses[textSize]}`}
-            dangerouslySetInnerHTML={{ __html: sanitizeHtml(post.content) }}
+            dangerouslySetInnerHTML={{ __html: post.content }}
           />
 
           {/* Reader Actions & Reactions Bar */}
