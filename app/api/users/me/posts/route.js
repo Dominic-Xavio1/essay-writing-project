@@ -6,7 +6,8 @@ export async function GET() {
   const userId = await requireAuth();
   if (!userId) return err('Unauthorized', 401);
 
-  const posts = await listPosts({ authorId: userId, status: 'published', viewerId: userId });
-  const drafts = await listPosts({ authorId: userId, status: 'draft', viewerId: userId });
-  return ok({ posts: [...posts, ...drafts] });
+  // Authors see every one of their own posts, whatever the stage: published,
+  // awaiting a mentor, returned for revision, rejected or still a draft.
+  const posts = await listPosts({ authorId: userId, status: 'all', viewerId: userId });
+  return ok({ posts });
 }

@@ -20,7 +20,7 @@ export function EssayCard({
 }) {
   const style = noteStyleFor(post.id);
   const cardStyle = monochrome
-    ? { bg: 'bg-white', tape: 'bg-primary/20', chip: 'bg-primary/5 text-primary' }
+    ? { bg: 'bg-card', tape: 'bg-primary/20', chip: 'bg-primary/5 text-primary' }
     : style;
   const rotate = tilt ? noteTiltFor(post.id) : 0;
   const CategoryIcon = categoryMeta(post.category).icon;

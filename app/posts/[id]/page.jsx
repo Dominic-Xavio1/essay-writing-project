@@ -110,6 +110,7 @@ export default function PostDetailPage() {
         setRelated(data.related || []);
         setLiked(data.post.liked ?? false);
         setBookmarked(data.post.bookmarked ?? false);
+        setFollowing(data.post.author?.isFollowing ?? false);
       })
       .catch(() => setPost(null))
       .finally(() => setLoading(false));
@@ -140,7 +141,6 @@ export default function PostDetailPage() {
       </>
     );
   }
-
   if (!post) {
     return (
       <>
@@ -350,7 +350,7 @@ export default function PostDetailPage() {
         {post.featured_image && (
           <figure className="relative mx-auto w-full max-w-5xl px-4 pt-8 sm:px-6 sm:pt-12">
             <span aria-hidden="true" className="absolute left-[18%] top-7 z-10 hidden h-6 w-20 -rotate-6 rounded-sm bg-primary/20 shadow-sm sm:block" />
-            <div className="group relative overflow-hidden rounded-[1.75rem] border border-border bg-white p-2 shadow-[0_18px_55px_-32px_rgba(26,33,24,0.45)] sm:p-3">
+            <div className="group relative overflow-hidden rounded-[1.75rem] border border-border bg-card p-2 shadow-[0_18px_55px_-32px_rgba(26,33,24,0.45)] sm:p-3">
               <div className="relative flex max-h-[520px] min-h-[240px] items-center justify-center overflow-hidden rounded-[1.25rem] bg-secondary/50 sm:min-h-[320px]">
                 <img
                   src={post.featured_image}
@@ -383,7 +383,7 @@ export default function PostDetailPage() {
               <ReadingBuddy variant={readingMoment.buddy} mood={readingMoment.mood} progress={scrollProgress} />
               <p className="mt-2 text-[10px] font-extrabold uppercase text-primary">{readingMoment.mood === 'joyful' ? 'You made it!' : 'Reading buddy'}</p>
               <div
-                className="mt-2 flex items-center gap-2 rounded-full border border-border bg-white px-3 py-2 text-xs text-muted-foreground shadow-sm"
+                className="mt-2 flex items-center gap-2 rounded-full border border-border bg-card px-3 py-2 text-xs text-muted-foreground shadow-sm"
                 role="progressbar"
                 aria-label="Article reading progress"
                 aria-valuemin={0}
@@ -444,28 +444,30 @@ export default function PostDetailPage() {
               </AuthorHoverCard>
             )}
 
-            <div className="flex items-center gap-2">
-              <Button
-                variant={following ? 'outline' : 'accent'}
-                size="sm"
-                onClick={handleFollow}
-              >
-                {following ? (
-                  <>
-                    <Check size={13} /> Following
-                  </>
-                ) : (
-                  <>
-                    <UserPlus size={13} /> Follow
-                  </>
-                )}
-              </Button>
-            </div>
+            {!post.author?.isSelf && (
+              <div className="flex items-center gap-2">
+                <Button
+                  variant={following ? 'outline' : 'accent'}
+                  size="sm"
+                  onClick={handleFollow}
+                >
+                  {following ? (
+                    <>
+                      <Check size={13} /> Following
+                    </>
+                  ) : (
+                    <>
+                      <UserPlus size={13} /> Follow
+                    </>
+                  )}
+                </Button>
+              </div>
+            )}
           </div>
 
           {/* Article Body Content */}
           <div
-            className={`prose prose-zinc dark:prose-invert max-w-none mb-16 text-foreground font-sans ${textSizeClasses[textSize]}`}
+            className={`reading-prose max-w-none mb-16 ${textSizeClasses[textSize]}`}
             dangerouslySetInnerHTML={{ __html: post.content }}
           />
 
@@ -841,7 +843,7 @@ export default function PostDetailPage() {
 
           {!focusMode && (
             <aside aria-label="Reading inspiration" className="fixed right-4 top-1/2 z-30 hidden w-40 -translate-y-1/2 xl:block">
-              <div className="rounded-2xl border border-border bg-white/95 p-4 shadow-sm">
+              <div className="rounded-2xl border border-border bg-card/95 p-4 shadow-sm">
                 <Quote size={17} className="text-primary/70" aria-hidden="true" />
                 <p className="mt-3 font-hand text-lg leading-snug text-foreground">{readingMoment.quote}</p>
                 <span className="mt-3 block text-[10px] font-bold uppercase text-muted-foreground">{readingMoment.author}</span>

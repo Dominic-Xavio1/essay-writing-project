@@ -76,7 +76,7 @@ export default function Home() {
   const heroNotes = trending.slice(0, 3);
 
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen bg-background">
       <Header />
 
       <section>
@@ -116,7 +116,7 @@ export default function Home() {
                 </Link>
                 <Link
                   href="/posts"
-                  className="group inline-flex items-center gap-2 rounded-xl border border-border bg-white px-5 py-3 text-sm font-bold text-foreground transition-colors hover:border-primary hover:text-primary"
+                  className="group inline-flex items-center gap-2 rounded-xl border border-border bg-card px-5 py-3 text-sm font-bold text-foreground transition-colors hover:border-primary hover:text-primary"
                 >
                   <Compass size={17} />
                   Explore the wall
@@ -201,7 +201,7 @@ export default function Home() {
                 <motion.div key={cat} variants={boardItem} whileHover={{ y: -3 }}>
                   <Link
                     href={`/posts?category=${encodeURIComponent(cat)}`}
-                    className="relative flex h-36 flex-col justify-between rounded-2xl border border-border bg-white p-4 transition-colors hover:border-primary/50"
+                    className="relative flex h-36 flex-col justify-between rounded-2xl border border-border bg-card p-4 transition-colors hover:border-primary/50"
                   >
                     <span className="flex items-center justify-between">
                       <span className="grid h-10 w-10 place-items-center rounded-xl bg-primary/5 text-primary">
@@ -244,7 +244,7 @@ export default function Home() {
 
       {/* CTA */}
       <section className="mx-auto max-w-7xl px-4 pt-4 pb-20 sm:px-6 lg:px-8">
-        <div className="flex flex-col items-start justify-between gap-6 rounded-2xl border border-border bg-white px-6 py-9 sm:px-10 md:flex-row md:items-center sm:py-11">
+        <div className="flex flex-col items-start justify-between gap-6 rounded-2xl border border-border bg-card px-6 py-9 sm:px-10 md:flex-row md:items-center sm:py-11">
             <div>
               <p className="text-xs font-extrabold uppercase text-primary">Your voice matters here</p>
               <h2 className="mt-2 font-display text-2xl font-extrabold text-foreground sm:text-3xl">Got something to say? Pin it.</h2>
@@ -291,7 +291,7 @@ function PromptNote({ prompt }) {
       variants={boardItem}
       whileHover={{ y: -6, scale: 1.03, rotate: 0 }}
       style={{ rotate: 1.5 }}
-      className="relative rounded-2xl border border-dashed border-primary/40 bg-white p-5"
+      className="relative rounded-2xl border border-dashed border-primary/40 bg-card p-5"
     >
       <p className="text-xs font-bold uppercase text-primary">Today&apos;s prompt</p>
       <p className="mt-3 font-display text-lg font-semibold leading-snug text-foreground">{prompt}</p>

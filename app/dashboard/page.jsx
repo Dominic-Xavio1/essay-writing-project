@@ -17,10 +17,7 @@ import {
   Grid,
   List,
   PenSquare,
-  TrendingUp,
-  Heart,
   BookOpen,
-  Users,
   Sparkles,
   BarChart3,
   Bookmark,
@@ -32,6 +29,7 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'sonner';
+import { cn } from '@/lib/utils';
 
 export default function DashboardPage() {
   const router = useRouter();
@@ -126,7 +124,27 @@ export default function DashboardPage() {
   const publishedPosts = userPosts.filter((p) => p.status === 'approved' || p.status === 'published');
   const pendingPosts = userPosts.filter((p) => p.status === 'pending');
   const draftPosts = userPosts.filter((p) => p.status === 'draft' && !p.feedback);
-  const revisionPosts = userPosts.filter((p) => p.status === 'draft' && p.feedback);
+  // A mentor either sends a note back with feedback (status 'draft' + feedback)
+  // or declines it outright ('rejected'). Both need to be visible to the author.
+  const revisionPosts = userPosts.filter(
+    (p) => (p.status === 'draft' && p.feedback) || p.status === 'rejected'
+  );
+
+  // Hearts per read and the most-loved board, both computed from real rows.
+  const heartsPerRead =
+    user.totalReads > 0 ? Math.min(100, Math.round((user.likes / user.totalReads) * 100)) : 0;
+
+  const topBoard = (() => {
+    const byBoard = new Map();
+    publishedPosts.forEach((post) => {
+      const entry = byBoard.get(post.category) || { category: post.category, likes: 0, count: 0 };
+      entry.likes += post.likes || 0;
+      entry.count += 1;
+      byBoard.set(post.category, entry);
+    });
+    const ranked = [...byBoard.values()].sort((a, b) => b.likes - a.likes || b.count - a.count);
+    return ranked[0] || null;
+  })();
 
   return (
     <>
@@ -213,116 +231,38 @@ export default function DashboardPage() {
             </div>
           </section>
 
-          {/* Analytics Cards */}
-          <section className="mb-10 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-            <div className="bg-note-mint -rotate-1 border border-black/5 p-5 rounded-3xl lift relative overflow-hidden group hover:border-primary/40 transition-all">
-              <div className="flex items-center justify-between mb-3">
-                <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
-                  Total Reads
-                </span>
-                <span className="text-xs text-emerald-600 bg-emerald-50 dark:bg-emerald-950/50 px-2 py-0.5 rounded-full font-semibold flex items-center gap-1">
-                  <TrendingUp size={12} /> Real-Time
-                </span>
-              </div>
-              <p className="font-display text-3xl font-extrabold text-foreground mb-3">
-                {(user.totalReads || 0).toLocaleString()}
-              </p>
-              <div className="h-10 w-full">
-                <svg className="w-full h-full overflow-visible" viewBox="0 0 100 30">
-                  <path
-                    d="M0,25 Q15,20 30,12 T60,18 T90,5 L100,8"
-                    fill="none"
-                    stroke="#16a34a"
-                    strokeWidth="2.5"
-                    strokeLinecap="round"
-                  />
-                  <path
-                    d="M0,25 Q15,20 30,12 T60,18 T90,5 L100,8 V30 H0 Z"
-                    fill="url(#gradient-reads)"
-                    opacity="0.15"
-                  />
-                  <defs>
-                    <linearGradient id="gradient-reads" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="#16a34a" />
-                      <stop offset="100%" stopColor="#16a34a" stopOpacity="0" />
-                    </linearGradient>
-                  </defs>
-                </svg>
-              </div>
-            </div>
-
-            <div className="bg-note-peach rotate-1 border border-black/5 p-5 rounded-3xl lift relative overflow-hidden group hover:border-rose-400/40 transition-all">
-              <div className="flex items-center justify-between mb-3">
-                <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
-                  Total Claps
-                </span>
-                <span className="text-xs text-rose-600 bg-rose-50 dark:bg-rose-950/50 px-2 py-0.5 rounded-full font-semibold flex items-center gap-1">
-                  <Heart size={12} /> Community
-                </span>
-              </div>
-              <p className="font-display text-3xl font-extrabold text-rose-500 mb-3">
-                {user.likes?.toLocaleString()}
-              </p>
-              <div className="h-10 w-full">
-                <svg className="w-full h-full overflow-visible" viewBox="0 0 100 30">
-                  <path
-                    d="M0,22 Q20,28 40,15 T70,10 T100,3"
-                    fill="none"
-                    stroke="#f43f5e"
-                    strokeWidth="2.5"
-                    strokeLinecap="round"
-                  />
-                </svg>
-              </div>
-            </div>
-
-            <div className="bg-note-butter -rotate-[0.6deg] border border-black/5 p-5 rounded-3xl lift relative overflow-hidden group hover:border-amber-400/40 transition-all">
-              <div className="flex items-center justify-between mb-3">
-                <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
-                  Reader Retention
-                </span>
-                <span className="text-xs text-amber-600 bg-amber-50 dark:bg-amber-950/50 px-2 py-0.5 rounded-full font-semibold">
-                  {user.retentionRate || 0}%
-                </span>
-              </div>
-              <p className="font-display text-3xl font-extrabold text-foreground mb-3">
-                {user.formattedDuration || '0m 0s'}
-              </p>
-              <div className="h-10 w-full">
-                <svg className="w-full h-full overflow-visible" viewBox="0 0 100 30">
-                  <path
-                    d="M0,18 Q25,8 50,16 T100,6"
-                    fill="none"
-                    stroke="#f97316"
-                    strokeWidth="2.5"
-                    strokeLinecap="round"
-                  />
-                </svg>
-              </div>
-            </div>
-
-            <div className="bg-note-sky rotate-[0.8deg] border border-black/5 p-5 rounded-3xl lift relative overflow-hidden group hover:border-primary/40 transition-all">
-              <div className="flex items-center justify-between mb-3">
-                <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
-                  Published Stories
-                </span>
-                <span className="text-xs text-emerald-600 bg-emerald-50 dark:bg-emerald-950/50 px-2 py-0.5 rounded-full font-semibold">
-                  Active
-                </span>
-              </div>
-              <p className="font-display text-3xl font-extrabold text-foreground mb-3">
-                {publishedPosts.length}
-              </p>
-              <div className="h-10 w-full flex items-center gap-1">
-                {[40, 65, 30, 85, 95, 50, 75, 100].map((h, i) => (
-                  <div
-                    key={i}
-                    style={{ height: `${h}%` }}
-                    className="flex-1 bg-primary/20 rounded-xs group-hover:bg-primary transition-colors"
-                  />
-                ))}
-              </div>
-            </div>
+          {/* Every figure here is read from the database — no placeholder charts */}
+          <section className="mb-10 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
+            <StatNote
+              tone="bg-note-mint"
+              tilt="-rotate-1"
+              label="Total reads"
+              value={(user.totalReads || 0).toLocaleString()}
+              hint="across your published notes"
+            />
+            <StatNote
+              tone="bg-note-peach"
+              tilt="rotate-1"
+              label="Hearts received"
+              value={(user.likes || 0).toLocaleString()}
+              valueClass="text-rose-500"
+              hint="from readers on the wall"
+            />
+            <StatNote
+              tone="bg-note-butter"
+              tilt="-rotate-[0.6deg]"
+              label="Readers reach"
+              value={`${user.retentionRate || 0}%`}
+              percent={user.retentionRate || 0}
+              hint={`average time on a note · ${user.formattedDuration}`}
+            />
+            <StatNote
+              tone="bg-note-sky"
+              tilt="rotate-[0.8deg]"
+              label="On the wall"
+              value={publishedPosts.length}
+              hint={`${pendingPosts.length} waiting for a mentor`}
+            />
           </section>
 
           {/* Animated Tabbed Content Navigation */}
@@ -545,8 +485,8 @@ export default function DashboardPage() {
                       >
                         <div className="flex-1 pr-4">
                           <div className="flex items-center gap-2 mb-1">
-                            <span className="text-[10px] uppercase font-bold bg-rose-500/10 text-rose-600 px-2.5 py-0.5 rounded-full border border-rose-500/20 animate-pulse">
-                              Revision Required
+                            <span className="text-[10px] uppercase font-bold bg-rose-500/10 text-rose-600 px-2.5 py-0.5 rounded-full border border-rose-500/20">
+                              {post.status === 'rejected' ? 'Not approved' : 'Revision requested'}
                             </span>
                             <h4 className="font-display font-bold text-base text-foreground">
                               {post.title}
@@ -684,42 +624,64 @@ export default function DashboardPage() {
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0 }}
-                className="bg-card border border-border p-8 rounded-2xl shadow-xs"
+                className="bg-card border border-border p-6 sm:p-8 rounded-[2rem] shadow-[var(--shadow-note)]"
               >
-                <h3 className="font-display text-xl font-bold text-foreground mb-6">
-                  Reader Engagement Insights
+                <h3 className="font-display text-xl font-bold text-foreground mb-1">
+                  How people read your notes
                 </h3>
-                <div className="space-y-6">
-                  <div>
-                    <div className="flex justify-between text-xs font-semibold mb-2">
-                      <span className="text-foreground">Completion Rate</span>
-                      <span className="text-primary font-bold">84%</span>
-                    </div>
-                    <div className="w-full bg-secondary h-2.5 rounded-full overflow-hidden">
-                      <div className="bg-primary h-full rounded-full w-[84%]" />
-                    </div>
-                  </div>
+                <p className="text-sm text-muted-foreground mb-7">
+                  Measured from real reading sessions on your published notes.
+                </p>
 
-                  <div>
-                    <div className="flex justify-between text-xs font-semibold mb-2">
-                      <span className="text-foreground">Claps / Read Ratio</span>
-                      <span className="text-rose-500 font-bold">32%</span>
-                    </div>
-                    <div className="w-full bg-secondary h-2.5 rounded-full overflow-hidden">
-                      <div className="bg-rose-500 h-full rounded-full w-[32%]" />
-                    </div>
+                {user.totalReads === 0 ? (
+                  <div className="rounded-2xl border-2 border-dashed border-border bg-secondary/40 p-8 text-center">
+                    <p className="mb-1 text-sm font-bold text-foreground">No reading data yet</p>
+                    <p className="text-xs leading-relaxed text-muted-foreground">
+                      Once friends start reading your published notes, you&apos;ll see how far they get
+                      and how long they stay.
+                    </p>
                   </div>
+                ) : (
+                  <div className="space-y-6">
+                    <InsightBar
+                      label="How far readers get through a note"
+                      value={`${user.retentionRate}%`}
+                      percent={user.retentionRate}
+                      tone="bg-primary"
+                    />
+                    <InsightBar
+                      label="Hearts per read"
+                      value={`${heartsPerRead}%`}
+                      percent={heartsPerRead}
+                      tone="bg-rose-500"
+                    />
 
-                  <div>
-                    <div className="flex justify-between text-xs font-semibold mb-2">
-                      <span className="text-foreground">Top Performing Category</span>
-                      <span className="text-amber-500 font-bold">Technology & Philosophy</span>
-                    </div>
-                    <div className="w-full bg-secondary h-2.5 rounded-full overflow-hidden">
-                      <div className="bg-amber-500 h-full rounded-full w-[65%]" />
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <div className="rounded-2xl border border-border bg-secondary/40 p-4">
+                        <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                          Average time on a note
+                        </p>
+                        <p className="mt-1 font-display text-2xl font-extrabold text-foreground">
+                          {user.formattedDuration}
+                        </p>
+                      </div>
+                      <div className="rounded-2xl border border-border bg-secondary/40 p-4">
+                        <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                          Most-loved board
+                        </p>
+                        <p className="mt-1 font-display text-2xl font-extrabold text-foreground">
+                          {topBoard ? topBoard.category : '—'}
+                        </p>
+                        {topBoard && (
+                          <p className="mt-0.5 text-xs text-muted-foreground">
+                            {topBoard.likes} {topBoard.likes === 1 ? 'heart' : 'hearts'} across{' '}
+                            {topBoard.count} {topBoard.count === 1 ? 'note' : 'notes'}
+                          </p>
+                        )}
+                      </div>
                     </div>
                   </div>
-                </div>
+                )}
               </motion.div>
             )}
           </AnimatePresence>
@@ -727,5 +689,42 @@ export default function DashboardPage() {
       </main>
       <Footer />
     </>
+  );
+}
+
+function StatNote({ tone, tilt, label, value, valueClass = 'text-foreground', hint, percent }) {
+  return (
+    <div className={cn('relative rounded-3xl border border-black/5 p-5 lift', tone, tilt)}>
+      <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">{label}</p>
+      <p className={cn('mt-2 font-display text-3xl font-extrabold', valueClass)}>{value}</p>
+      {typeof percent === 'number' && (
+        <div className="mt-3 h-2 w-full overflow-hidden rounded-full bg-black/5">
+          <div
+            className="h-full rounded-full bg-primary transition-[width] duration-700"
+            style={{ width: `${Math.min(100, Math.max(0, percent))}%` }}
+          />
+        </div>
+      )}
+      {hint && (
+        <p className="mt-2 text-[11px] font-semibold leading-snug text-muted-foreground">{hint}</p>
+      )}
+    </div>
+  );
+}
+
+function InsightBar({ label, value, percent, tone }) {
+  return (
+    <div>
+      <div className="mb-2 flex items-baseline justify-between gap-3 text-xs font-semibold">
+        <span className="text-foreground">{label}</span>
+        <span className="font-display text-sm font-extrabold text-foreground">{value}</span>
+      </div>
+      <div className="h-2.5 w-full overflow-hidden rounded-full bg-secondary">
+        <div
+          className={cn('h-full rounded-full transition-[width] duration-700', tone)}
+          style={{ width: `${Math.min(100, Math.max(0, percent))}%` }}
+        />
+      </div>
+    </div>
   );
 }

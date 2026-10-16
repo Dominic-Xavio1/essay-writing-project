@@ -288,3 +288,106 @@
     display: none;
   }
 }
+
+/* ── Essay reading surface ────────────────────────────────────────────────
+   The article body is author-written HTML. These rules give it one
+   typographic system; sizes are in `em` so the reader's text-size control
+   scales the whole hierarchy together. */
+.reading-prose {
+  color: var(--foreground);
+  text-wrap: pretty;
+}
+.reading-prose > :first-child { margin-top: 0; }
+.reading-prose > :last-child { margin-bottom: 0; }
+
+.reading-prose p { margin: 0 0 1.15em; }
+
+.reading-prose h1,
+.reading-prose h2,
+.reading-prose h3,
+.reading-prose h4 {
+  font-family: var(--font-display);
+  letter-spacing: -0.02em;
+  line-height: 1.22;
+  color: var(--foreground);
+  margin: 1.9em 0 0.6em;
+  text-wrap: balance;
+}
+.reading-prose h1 { font-size: 1.85em; font-weight: 800; }
+.reading-prose h2 { font-size: 1.5em;  font-weight: 800; }
+.reading-prose h3 { font-size: 1.25em; font-weight: 700; }
+.reading-prose h4 { font-size: 1.1em;  font-weight: 700; }
+
+.reading-prose strong, .reading-prose b { font-weight: 700; }
+.reading-prose em, .reading-prose i { font-style: italic; }
+
+.reading-prose ul, .reading-prose ol { margin: 0 0 1.15em; padding-left: 1.6em; }
+.reading-prose ul { list-style: disc; }
+.reading-prose ol { list-style: decimal; }
+.reading-prose li { margin: 0.4em 0; padding-left: 0.2em; }
+.reading-prose li::marker { color: var(--primary); }
+
+.reading-prose blockquote {
+  margin: 1.6em 0;
+  padding: 0.9em 1.2em;
+  border-left: 4px solid var(--accent);
+  border-radius: 0 var(--radius-lg) var(--radius-lg) 0;
+  background: var(--note-peach);
+  font-style: italic;
+}
+.reading-prose blockquote p:last-child { margin-bottom: 0; }
+
+.reading-prose a {
+  color: var(--primary);
+  text-decoration: underline;
+  text-decoration-thickness: 1.5px;
+  text-underline-offset: 3px;
+}
+.reading-prose a:hover { color: var(--accent); }
+
+.reading-prose img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  margin: 1.8em auto;
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-note);
+}
+
+.reading-prose hr {
+  margin: 2.4em auto;
+  width: 40%;
+  border: 0;
+  border-top: 2px dashed var(--border);
+}
+
+.reading-prose code {
+  font-family: var(--font-mono);
+  font-size: 0.88em;
+  background: var(--secondary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 0.15em 0.4em;
+}
+.reading-prose pre {
+  margin: 1.5em 0;
+  padding: 1em 1.2em;
+  overflow-x: auto;
+  background: var(--secondary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+}
+.reading-prose pre code { background: none; border: 0; padding: 0; }
+
+.reading-prose table {
+  width: 100%;
+  margin: 1.6em 0;
+  border-collapse: collapse;
+  font-size: 0.95em;
+}
+.reading-prose th, .reading-prose td {
+  border: 1px solid var(--border);
+  padding: 0.6em 0.8em;
+  text-align: left;
+}
+.reading-prose th { background: var(--secondary); font-weight: 700; }

@@ -1,6 +1,7 @@
 import { Nunito, Bricolage_Grotesque, Caveat } from 'next/font/google'
 import { Analytics } from '@vercel/analytics/next'
 import { Toaster } from '@/components/ui/sonner'
+import { ThemeProvider } from '@/components/theme-provider'
 import './globals.css'
 
 // Initialize WebSocket server on server side
@@ -43,10 +44,21 @@ export const metadata = {
 
 export default function RootLayout({ children }) {
   return (
-    <html lang="en" className={`${bodyFont.variable} ${headingFont.variable} ${handFont.variable}`}>
+    <html
+      lang="en"
+      suppressHydrationWarning
+      className={`${bodyFont.variable} ${headingFont.variable} ${handFont.variable}`}
+    >
       <body className="font-sans antialiased">
-        {children}
-        <Toaster />
+        <ThemeProvider
+          attribute="class"
+          defaultTheme="light"
+          enableSystem={false}
+          disableTransitionOnChange
+        >
+          {children}
+          <Toaster />
+        </ThemeProvider>
         {process.env.NODE_ENV === 'production' && <Analytics />}
       </body>
     </html>

@@ -7,15 +7,12 @@ import {
   Menu,
   X,
   LogOut,
-  Sparkles,
   PenSquare,
-  Trophy,
   Bell,
   ShieldCheck,
   AlertCircle,
   Compass,
   LayoutDashboard,
-  Search,
 } from 'lucide-react';
 import { api } from '@/lib/api-client';
 import Image from 'next/image';
@@ -24,13 +21,13 @@ import { toast } from 'sonner';
 
 import { Button } from '@/components/ui/customButton';
 import { UserAvatar } from '@/components/ui/UserAvatar';
+import { ThemeToggle } from '@/components/shared/ThemeToggle';
 
 export function Header() {
   const router = useRouter();
   const pathname = usePathname();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [user, setUser] = useState(null);
-  const [showAchievements, setShowAchievements] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
   const [notifications, setNotifications] = useState([]);
   const [scrolled, setScrolled] = useState(false);
@@ -156,10 +153,7 @@ export function Header() {
         <motion.button
           whileHover={{ scale: 1.12, y: -2, rotate: [0, -8, 8, 0] }}
           whileTap={{ scale: 0.92 }}
-          onClick={() => {
-            setShowNotifications(!showNotifications);
-            setShowAchievements(false);
-          }}
+          onClick={() => setShowNotifications(!showNotifications)}
           className="relative rounded-full p-2.5 text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
           title="Notifications"
         >
@@ -246,72 +240,8 @@ export function Header() {
         </AnimatePresence>
       </div>
 
-      {/* Achievements Trophy Button */}
-      <div className="relative hidden sm:block">
-        <motion.button
-          whileHover={{ scale: 1.12, y: -2, rotate: [0, -8, 8, 0] }}
-          whileTap={{ scale: 0.92 }}
-          onClick={() => {
-            setShowAchievements(!showAchievements);
-            setShowNotifications(false);
-          }}
-          className="relative rounded-full p-2.5 text-muted-foreground transition-colors hover:bg-secondary hover:text-amber-600"
-          title="Achievements & Badges"
-        >
-          <Trophy size={19} className="text-amber-500" />
-          <span className="absolute top-1 right-1 w-2.5 h-2.5 bg-emerald-500 rounded-full animate-pulse ring-2 ring-background" />
-        </motion.button>
-
-        <AnimatePresence>
-          {showAchievements && (
-            <motion.div
-              initial={{ opacity: 0, y: 12, scale: 0.95 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: 12, scale: 0.95 }}
-              transition={{ duration: 0.2, ease: 'easeOut' }}
-              className="absolute right-0 mt-3 w-76 bg-card/95 backdrop-blur-xl border border-border shadow-2xl rounded-2xl p-4 z-50 text-xs"
-            >
-              <div className="flex items-center justify-between pb-3 border-b border-border/80 mb-3">
-                <span className="font-bold text-sm flex items-center gap-1.5 text-foreground">
-                  <Sparkles size={16} className="text-amber-500" /> Reader Achievements
-                </span>
-                <span className="text-[10px] font-black px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 border border-emerald-500/20">
-                  3 Unlocked
-                </span>
-              </div>
-              <div className="space-y-2.5">
-                <div className="flex items-center gap-3 p-2.5 bg-secondary/60 rounded-xl border border-border/50">
-                  <div className="w-9 h-9 rounded-full bg-emerald-500/10 text-emerald-600 flex items-center justify-center font-bold text-base shadow-xs">
-                    ✍️
-                  </div>
-                  <div>
-                    <p className="font-bold text-foreground text-xs">First Essay Written</p>
-                    <p className="text-muted-foreground text-[11px]">Published your story</p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-3 p-2.5 bg-secondary/60 rounded-xl border border-border/50">
-                  <div className="w-9 h-9 rounded-full bg-amber-500/10 text-amber-600 flex items-center justify-center font-bold text-base shadow-xs">
-                    📚
-                  </div>
-                  <div>
-                    <p className="font-bold text-foreground text-xs">Avid Reader</p>
-                    <p className="text-muted-foreground text-[11px]">Read 10+ essays</p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-3 p-2.5 bg-secondary/60 rounded-xl border border-border/50">
-                  <div className="w-9 h-9 rounded-full bg-rose-500/10 text-rose-600 flex items-center justify-center font-bold text-base shadow-xs">
-                    👏
-                  </div>
-                  <div>
-                    <p className="font-bold text-foreground text-xs">100 Claps Received</p>
-                    <p className="text-muted-foreground text-[11px]">Community appreciation</p>
-                  </div>
-                </div>
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </div>
+      {/* Light / dark mode */}
+      <ThemeToggle />
 
       {/* User Profile Glass Pill */}
       <motion.div whileHover={{ scale: 1.08, y: -2 }} whileTap={{ scale: 0.95 }}>
@@ -350,6 +280,8 @@ export function Header() {
     </div>
   ) : (
     <div className="flex items-center gap-2">
+      <ThemeToggle />
+
       <motion.div whileHover={{ scale: 1.08, y: -2 }} whileTap={{ scale: 0.95 }}>
         <Button variant="green" href="/auth/login" className="rounded-full px-5 py-2.5 text-sm font-bold shadow-sm">
           Sign In

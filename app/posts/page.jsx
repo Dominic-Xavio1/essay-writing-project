@@ -8,7 +8,7 @@ import { NoteBuddy } from '@/components/shared/NoteBuddy';
 import { EssayCard, EssayCardSkeleton } from '@/components/board/EssayCard';
 import { MasonryBoard } from '@/components/board/MasonryBoard';
 import { FreeformBoard } from '@/components/board/FreeformBoard';
-import { categories, allTags } from '@/lib/posts';
+import { categories } from '@/lib/posts';
 import { categoryMeta } from '@/lib/board';
 import { api } from '@/lib/api-client';
 import {
@@ -45,6 +45,7 @@ export default function PostsPage() {
   const [copiedId, setCopiedId] = useState(null);
   const [view, setView] = useState('masonry');
   const [showTags, setShowTags] = useState(false);
+  const [tags, setTags] = useState([]);
 
   const searchInputRef = useRef(null);
 
@@ -56,6 +57,11 @@ export default function PostsPage() {
     if (search) setSearchQuery(search);
     const saved = localStorage.getItem('asyv-board-view');
     if (saved === 'freeform' || saved === 'masonry') setView(saved);
+
+    api
+      .getTags()
+      .then((data) => setTags(data.tags || []))
+      .catch(() => setTags([]));
   }, []);
 
   useEffect(() => {
@@ -200,7 +206,7 @@ export default function PostsPage() {
                   className="relative grid h-16 w-16 shrink-0 place-items-center"
                 >
                   <NoteBuddy size="md" />
-                  <span className="absolute -right-1 -top-1 grid h-7 w-7 place-items-center rounded-full border border-border bg-white text-primary shadow-sm">
+                  <span className="absolute -right-1 -top-1 grid h-7 w-7 place-items-center rounded-full border border-border bg-card text-primary shadow-sm">
                     <ActiveIcon size={13} strokeWidth={2.2} aria-hidden />
                   </span>
                 </motion.div>
@@ -342,23 +348,33 @@ export default function PostsPage() {
                 className="overflow-hidden"
               >
                 <div className="mt-2 flex flex-wrap gap-1.5 rounded-2xl border border-border bg-card/90 p-3 backdrop-blur-md">
-                  {allTags.map((tag) => {
-                    const active = selectedTags.includes(tag);
-                    return (
-                      <button
-                        key={tag}
-                        onClick={() => toggleTag(tag)}
-                        className={cn(
-                          'rounded-full border px-3 py-1 text-xs font-bold transition-all hover:-translate-y-0.5',
-                          active
-                            ? 'border-accent bg-accent text-accent-foreground'
-                            : 'border-border bg-card text-foreground/70 hover:border-accent/50 hover:text-accent'
-                        )}
-                      >
-                        #{tag}
-                      </button>
-                    );
-                  })}
+                  {tags.length === 0 ? (
+                    <p className="px-1 py-0.5 text-xs font-semibold text-muted-foreground">
+                      No tags on the wall yet — they appear here once students add them to a note.
+                    </p>
+                  ) : (
+                    tags.map(({ tag, count }) => {
+                      const active = selectedTags.includes(tag);
+                      return (
+                        <button
+                          key={tag}
+                          onClick={() => toggleTag(tag)}
+                          aria-pressed={active}
+                          className={cn(
+                            'inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-bold transition-all hover:-translate-y-0.5',
+                            active
+                              ? 'border-accent bg-accent text-accent-foreground'
+                              : 'border-border bg-card text-foreground/70 hover:border-accent/50 hover:text-accent'
+                          )}
+                        >
+                          #{tag}
+                          <span className={cn('text-[10px] font-extrabold', active ? 'text-accent-foreground/70' : 'text-muted-foreground')}>
+                            {count}
+                          </span>
+                        </button>
+                      );
+                    })
+                  )}
                 </div>
               </motion.div>
             )}
