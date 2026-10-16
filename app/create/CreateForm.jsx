@@ -1,54 +1,101 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
+import { toast } from 'sonner';
+import {
+  X,
+  ImagePlus,
+  Send,
+  Save,
+  Loader2,
+  Check,
+  Clock,
+  AlertCircle,
+  Eye,
+} from 'lucide-react';
 import { Header } from '@/components/shared/Header';
 import { RichTextEditor } from '@/components/editor/RichTextEditor';
+import { InkButton } from '@/components/editorial/Bits';
 import { api } from '@/lib/api-client';
 import { categories } from '@/lib/posts';
 import { categoryMeta } from '@/lib/board';
-import {
-  X,
-  Clock,
-  ImagePlus,
-  Hash,
-  Send,
-  Save,
-  Lightbulb,
-  Sparkles,
-  Loader2,
-  Sunrise,
-  Users,
-  Wrench,
-  Flag,
-} from 'lucide-react';
-import { toast } from 'sonner';
+import { wordCount as countWords } from '@/lib/essay';
 import { cn } from '@/lib/utils';
 
+/* Prompts offered beside the page. Editorial copy, not data. */
 const SPARKS = [
-  { icon: Sunrise, tone: 'text-accent', text: 'A morning on the hill you will never forget' },
-  { icon: Users, tone: 'text-primary', text: 'Someone in your family (village family counts!) who changed you' },
-  { icon: Wrench, tone: 'text-sky-600', text: 'A problem at school you would love to fix' },
-  { icon: Flag, tone: 'text-violet-600', text: 'What Rwanda will look like when you are 30' },
+  'A morning on the hill you will never forget.',
+  'Someone in your family — village family counts — who changed you.',
+  'A problem at school you would love to fix, and how.',
+  'What Rwanda will look like when you are thirty.',
 ];
+
+/* What each status means, in plain words. */
+const STATUS_COPY = {
+  draft: {
+    label: 'Draft',
+    icon: Save,
+    tone: 'text-ink-soft',
+    line: 'Only you can see this. It stays here until you send it.',
+  },
+  pending: {
+    label: 'With a mentor',
+    icon: Clock,
+    tone: 'text-accent',
+    line: 'An ASYV mentor is reading it. You will get a notice when they answer.',
+  },
+  approved: {
+    label: 'Published',
+    icon: Check,
+    tone: 'text-primary',
+    line: 'This is live on the site. Any edit goes back to a mentor before it reappears.',
+  },
+  published: {
+    label: 'Published',
+    icon: Check,
+    tone: 'text-primary',
+    line: 'This is live on the site. Any edit goes back to a mentor before it reappears.',
+  },
+  rejected: {
+    label: 'Not approved',
+    icon: AlertCircle,
+    tone: 'text-destructive',
+    line: 'A mentor did not approve this one. Read their note, then send it again.',
+  },
+};
 
 export function CreateForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const editId = searchParams.get('edit');
+  const reduce = useReducedMotion();
 
   const [title, setTitle] = useState('');
   const [excerpt, setExcerpt] = useState('');
   const [content, setContent] = useState('');
-  const [category, setCategory] = useState('Technology');
+  const [category, setCategory] = useState('Personal');
   const [tags, setTags] = useState([]);
   const [tagInput, setTagInput] = useState('');
   const [featuredImage, setFeaturedImage] = useState(null);
   const [saving, setSaving] = useState(false);
   const [loadingEdit, setLoadingEdit] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
+  const [status, setStatus] = useState('draft');
+  const [feedback, setFeedback] = useState('');
+  const [showDetails, setShowDetails] = useState(false);
+  const titleRef = useRef(null);
+
+  /* Keep the title on one growing line. `field-sizing` does this natively in
+     newer browsers; this handles the ones where it does not. */
+  useEffect(() => {
+    const el = titleRef.current;
+    if (!el || CSS.supports?.('field-sizing', 'content')) return;
+    el.style.height = 'auto';
+    el.style.height = `${el.scrollHeight}px`;
+  }, [title]);
 
   useEffect(() => {
     if (!editId) return;
@@ -59,16 +106,21 @@ export function CreateForm() {
       .then((data) => {
         if (!isCurrentRequest) return;
         const p = data.post;
-        if (!p) throw new Error('Essay not found');
+        if (!p) throw new Error('That piece could not be found');
         setTitle(p.title || '');
         setExcerpt(p.excerpt || '');
         setContent(p.content || '');
-        setCategory(p.category || 'Technology');
+        setCategory(p.category || 'Personal');
         setTags(p.tags || []);
         setFeaturedImage(p.featured_image || null);
+        setStatus(p.status || 'draft');
+        setFeedback(p.feedback || '');
+        if (p.excerpt || p.featured_image || p.tags?.length) setShowDetails(true);
       })
       .catch((error) => {
-        if (isCurrentRequest) toast.error(error instanceof Error ? error.message : 'Failed to load essay');
+        if (isCurrentRequest) {
+          toast.error(error instanceof Error ? error.message : 'Could not open that piece');
+        }
       })
       .finally(() => {
         if (isCurrentRequest) setLoadingEdit(false);
@@ -79,16 +131,13 @@ export function CreateForm() {
     };
   }, [editId]);
 
-  const plainTextContent = content.replace(/<[^>]*>/g, '').trim();
-  const wordCount = plainTextContent ? plainTextContent.split(/\s+/).length : 0;
-  const estimatedReadTime = Math.max(1, Math.ceil(wordCount / 200));
-  const targetWords = 500;
-  const wordProgress = Math.min(100, Math.round((wordCount / targetWords) * 100));
+  const words = useMemo(() => countWords(content), [content]);
+  const estimatedReadTime = Math.max(1, Math.ceil(words / 200));
 
   const handleAddTag = (e) => {
     if ((e.key === 'Enter' || e.key === ',') && tagInput.trim()) {
       e.preventDefault();
-      const clean = tagInput.trim().replace(/^#/, '');
+      const clean = tagInput.trim().replace(/^#/, '').toLowerCase();
       if (clean && !tags.includes(clean)) setTags([...tags, clean]);
       setTagInput('');
     }
@@ -96,13 +145,12 @@ export function CreateForm() {
 
   const handleImageFile = (file) => {
     if (!file.type.startsWith('image/')) {
-      toast.error('Please upload a valid image file');
+      toast.error('That file is not an image');
       return;
     }
     const reader = new FileReader();
     reader.onload = (event) => setFeaturedImage(event.target?.result);
     reader.readAsDataURL(file);
-    toast.success('Cover image added 🖼️');
   };
 
   const handleImageUpload = (e) => {
@@ -110,30 +158,14 @@ export function CreateForm() {
     if (file) handleImageFile(file);
   };
 
-  const handleDragOver = (e) => {
-    e.preventDefault();
-    setIsDragging(true);
-  };
-
-  const handleDragLeave = (e) => {
-    e.preventDefault();
-    setIsDragging(false);
-  };
-
-  const handleDrop = (e) => {
-    e.preventDefault();
-    setIsDragging(false);
-    const file = e.dataTransfer.files?.[0];
-    if (file) handleImageFile(file);
-  };
-
-  const submit = async (status) => {
+  const submit = async (nextStatus) => {
     if (!title.trim()) {
-      toast.error('Give your note a title first ✏️');
+      toast.error('Give the piece a title first.');
       return;
     }
-    if (status === 'published' && (!excerpt.trim() || !content.trim())) {
-      toast.error('Add a one-line summary and some content before pinning');
+    if (nextStatus === 'published' && (!excerpt.trim() || !content.trim())) {
+      toast.error('A summary and some writing are needed before you send it.');
+      setShowDetails(true);
       return;
     }
 
@@ -146,319 +178,424 @@ export function CreateForm() {
         category,
         tags,
         featured_image: featuredImage || '',
-        status,
+        status: nextStatus,
       };
+
       if (editId) {
-        await api.updatePost(editId, body);
-        toast.success(status === 'draft' ? 'Draft updated!' : 'Note updated!');
+        const res = await api.updatePost(editId, body);
+        if (res.post?.status) setStatus(res.post.status);
+        toast.success(
+          nextStatus === 'draft'
+            ? 'Draft saved.'
+            : res.post?.status === 'pending'
+            ? 'Sent to a mentor.'
+            : 'Updated.'
+        );
       } else {
         const res = await api.createPost(body);
-        if (status === 'draft') {
-          toast.success('Draft saved!');
+        if (nextStatus === 'draft') {
+          toast.success('Draft saved. You can come back to it any time.');
+          if (res.post?.id) router.replace(`/create?edit=${res.post.id}`);
         } else if (res.post?.status === 'pending') {
-          toast.success('Sent to a mentor for review 🎉');
+          toast.success('Sent to a mentor for reading.');
         } else {
-          toast.success('Pinned to the wall! 🎉');
-        }
-        if (status === 'published') {
-          setTitle('');
-          setExcerpt('');
-          setContent('');
-          setCategory('Technology');
-          setTags([]);
-          setFeaturedImage(null);
+          toast.success('Published.');
         }
       }
-      if (status === 'published') router.push('/dashboard');
+
+      if (nextStatus === 'published') router.push('/dashboard');
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to save essay');
+      toast.error(err instanceof Error ? err.message : 'That could not be saved');
     } finally {
       setSaving(false);
     }
   };
 
   const meta = categoryMeta(category);
-  const MetaIcon = meta.icon;
+  const statusInfo = STATUS_COPY[status] || STATUS_COPY.draft;
+  const StatusIcon = statusInfo.icon;
 
   return (
     <>
       <Header />
-      <main className="relative min-h-screen bg-canvas-lines pb-24">
-        <div className="pointer-events-none absolute left-0 top-20 h-72 w-72 rounded-full bg-primary/10 blur-3xl" />
-        <div className="pointer-events-none absolute right-0 top-96 h-72 w-72 rounded-full bg-accent/10 blur-3xl" />
 
-        <div className="relative mx-auto grid max-w-6xl grid-cols-1 gap-8 px-3 py-8 sm:px-6 xl:grid-cols-[1fr_260px]">
-          {/* Floating creation sheet */}
-          <motion.div
-            initial={{ opacity: 0, y: 40, scale: 0.97 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            transition={{ type: 'spring', stiffness: 200, damping: 24 }}
-            className="relative rounded-[2rem] border border-border bg-card shadow-[0_30px_80px_-30px_rgba(26,33,24,0.35)]"
-          >
-            {/* Sheet top bar */}
-            <div className="sticky top-[5.25rem] z-30 flex items-center justify-between gap-3 rounded-t-[2rem] border-b border-border bg-card/90 px-4 py-3 backdrop-blur-md sm:px-6">
-              <div className="flex min-w-0 items-center gap-3">
+      <main id="main" className="min-h-screen bg-paper pb-28">
+        {/* ── Desk bar: the only controls, and the current status ────────── */}
+        <div className="sticky top-[4.5rem] z-30 border-b border-rule bg-paper/95 backdrop-blur-[2px]">
+          <div className="mx-auto flex max-w-[84rem] flex-wrap items-center gap-x-5 gap-y-2 px-4 py-2.5 sm:px-6 lg:px-8">
+            <Link
+              href="/dashboard"
+              className="inline-flex items-center gap-1.5 text-xs font-medium text-ink-faint transition-colors hover:text-foreground"
+            >
+              <X size={14} aria-hidden /> Close
+            </Link>
+
+            <span aria-hidden className="h-4 w-px bg-rule" />
+
+            <p className={cn('inline-flex items-center gap-1.5 text-xs font-medium', statusInfo.tone)}>
+              <StatusIcon size={13} aria-hidden />
+              {statusInfo.label}
+            </p>
+
+            <p className="hidden text-xs tabular-nums text-ink-faint sm:block">
+              {words} {words === 1 ? 'word' : 'words'} · about {estimatedReadTime} min to read
+            </p>
+
+            <div className="ml-auto flex items-center gap-2">
+              {editId && (status === 'approved' || status === 'published') && (
                 <Link
-                  href="/dashboard"
-                  aria-label="Close editor"
-                  className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-secondary text-muted-foreground transition-all hover:rotate-90 hover:bg-rose-500/10 hover:text-rose-500"
+                  href={`/posts/${editId}`}
+                  className="hidden items-center gap-1.5 px-2 py-1.5 text-xs font-medium text-ink-soft hover:text-foreground sm:inline-flex"
                 >
-                  <X size={18} />
+                  <Eye size={14} aria-hidden /> View live
                 </Link>
-                <div className="min-w-0">
-                  <p className="truncate font-display text-sm font-extrabold text-foreground">
-                    {editId ? 'Editing your note' : 'New note'}
-                  </p>
-                  <p className="flex items-center gap-1 text-[11px] font-bold text-muted-foreground">
-                    <Clock size={11} /> {wordCount} words · ~{estimatedReadTime} min read
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-2">
-                <div className="relative hidden h-9 w-9 sm:block" title={`${wordProgress}% of a ${targetWords}-word goal`}>
-                  <svg className="h-9 w-9 -rotate-90" viewBox="0 0 40 40">
-                    <circle cx="20" cy="20" r="16" stroke="currentColor" strokeWidth="4" className="text-secondary" fill="none" />
-                    <circle
-                      cx="20"
-                      cy="20"
-                      r="16"
-                      stroke="currentColor"
-                      strokeWidth="4"
-                      className={cn('transition-all duration-500', wordProgress >= 100 ? 'text-accent' : 'text-primary')}
-                      fill="none"
-                      pathLength="100"
-                      strokeDasharray="100"
-                      strokeDashoffset={100 - wordProgress}
-                      strokeLinecap="round"
-                    />
-                  </svg>
-                  <span className="absolute inset-0 grid place-items-center text-[9px] font-black">{wordProgress}%</span>
-                </div>
-                <motion.button
-                  type="button"
-                  whileHover={{ y: -2 }}
-                  whileTap={{ scale: 0.95 }}
-                  onClick={() => submit('draft')}
-                  disabled={saving || loadingEdit}
-                  className="inline-flex items-center gap-1.5 rounded-xl border-2 border-primary/20 px-3 py-2 text-xs font-extrabold text-primary transition-colors hover:border-primary disabled:opacity-50 sm:px-4"
-                >
-                  <Save size={15} />
-                  <span className="hidden sm:inline">Save draft</span>
-                </motion.button>
-                <motion.button
-                  type="button"
-                  whileHover={{ y: -2, scale: 1.04 }}
-                  whileTap={{ scale: 0.95 }}
-                  onClick={() => submit('published')}
-                  disabled={saving || loadingEdit}
-                  className="inline-flex items-center gap-1.5 rounded-xl bg-accent px-4 py-2 text-xs font-extrabold text-accent-foreground shadow-[0_10px_22px_-10px_rgba(249,115,22,0.8)] disabled:opacity-50"
-                >
-                  {saving ? <Loader2 size={15} className="animate-spin" /> : <Send size={15} />}
-                  {editId ? 'Update' : 'Pin it'}
-                </motion.button>
-              </div>
-            </div>
-
-            <form className="space-y-6 p-4 sm:p-8" onSubmit={(e) => e.preventDefault()}>
-              {/* Board / category stickers */}
-              <div>
-                <p className="mb-2 text-[11px] font-extrabold uppercase tracking-wider text-muted-foreground">
-                  Which board?
-                </p>
-                <div className="flex flex-wrap gap-2">
-                  {categories
-                    .filter((c) => c !== 'All')
-                    .map((cat) => {
-                      const CatIcon = categoryMeta(cat).icon;
-                      const active = category === cat;
-                      return (
-                        <motion.button
-                          key={cat}
-                          type="button"
-                          whileHover={{ y: -3, rotate: -2 }}
-                          whileTap={{ scale: 0.92 }}
-                          onClick={() => setCategory(cat)}
-                          className={cn(
-                            'inline-flex items-center gap-1.5 rounded-2xl border-2 px-3 py-2 text-xs font-extrabold transition-colors',
-                            active
-                              ? 'border-primary bg-primary text-primary-foreground shadow-md'
-                              : 'border-border bg-background text-foreground/70 hover:border-primary/40'
-                          )}
-                        >
-                          <CatIcon size={14} strokeWidth={2.5} /> {cat}
-                        </motion.button>
-                      );
-                    })}
-                </div>
-              </div>
-
-              {/* Cover */}
-              <AnimatePresence mode="wait">
-                {featuredImage ? (
-                  <motion.div
-                    key="cover"
-                    initial={{ opacity: 0, scale: 0.97 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    exit={{ opacity: 0, scale: 0.97 }}
-                    className="group relative h-52 overflow-hidden rounded-3xl border border-border sm:h-72"
-                  >
-                    <img src={featuredImage} alt="Cover preview" className="h-full w-full object-cover" />
-                    <button
-                      type="button"
-                      onClick={() => setFeaturedImage(null)}
-                      className="absolute right-3 top-3 inline-flex items-center gap-1.5 rounded-full bg-black/60 px-3 py-1.5 text-xs font-bold text-white opacity-0 backdrop-blur transition-opacity group-hover:opacity-100 focus:opacity-100"
-                    >
-                      <X size={14} /> Remove
-                    </button>
-                  </motion.div>
-                ) : (
-                  <motion.label
-                    key="drop"
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    exit={{ opacity: 0 }}
-                    onDragOver={handleDragOver}
-                    onDragLeave={handleDragLeave}
-                    onDrop={handleDrop}
-                    className={cn(
-                      'flex cursor-pointer items-center gap-4 rounded-3xl border-2 border-dashed p-4 transition-all',
-                      isDragging
-                        ? 'scale-[1.01] border-accent bg-note-peach'
-                        : 'border-border bg-background/60 hover:border-accent/50 hover:bg-note-peach/50'
-                    )}
-                  >
-                    <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-note-peach text-accent">
-                      <ImagePlus size={22} />
-                    </span>
-                    <span>
-                      <span className="block text-sm font-extrabold text-foreground">Add a cover photo</span>
-                      <span className="block text-xs text-muted-foreground">Drop an image here or click to browse</span>
-                    </span>
-                    <input type="file" accept="image/*" onChange={handleImageUpload} className="hidden" />
-                  </motion.label>
-                )}
-              </AnimatePresence>
-
-              {/* Title */}
-              <div className="flex items-start gap-3">
-                <motion.span
-                  key={category}
-                  initial={{ scale: 0.5, rotate: -30 }}
-                  animate={{ scale: 1, rotate: -8 }}
-                  className="mt-1 grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-note-butter text-2xl"
-                >
-                  <MetaIcon size={24} strokeWidth={2.5} className={meta.tone} />
-                </motion.span>
-                <textarea
-                  value={title}
-                  onChange={(e) => setTitle(e.target.value)}
-                  placeholder="Give your note a title…"
-                  rows={1}
-                  className="field-sizing-content w-full resize-none bg-transparent font-display text-3xl font-extrabold leading-tight text-foreground placeholder:text-muted-foreground/50 focus:outline-none sm:text-4xl"
-                />
-              </div>
-
-              {/* Excerpt as sticky note */}
-              <div className="relative rotate-[-0.4deg] rounded-2xl bg-note-peach p-4">
-                <span aria-hidden className="tape bg-accent/50" />
-                <label className="mb-1 flex items-center justify-between text-[11px] font-extrabold uppercase tracking-wider text-accent">
-                  <span>The hook</span>
-                  <span className="font-bold normal-case text-muted-foreground">{excerpt.length}/300</span>
-                </label>
-                <textarea
-                  value={excerpt}
-                  onChange={(e) => setExcerpt(e.target.value)}
-                  placeholder="One line that makes friends want to read more…"
-                  rows={2}
-                  maxLength={300}
-                  className="w-full resize-none bg-transparent font-hand text-2xl leading-snug text-foreground placeholder:text-foreground/35 focus:outline-none"
-                />
-              </div>
-
-              {/* Body */}
-              {loadingEdit ? (
-                <div className="flex min-h-[380px] items-center justify-center gap-2 rounded-3xl border border-dashed border-border bg-background/60 text-sm font-semibold text-muted-foreground" role="status">
-                  <Loader2 size={17} className="animate-spin text-primary" />
-                  Loading your saved note…
-                </div>
-              ) : (
-                <RichTextEditor value={content} onChange={setContent} placeholder="Start writing your story here…" />
               )}
 
-              {/* Tags */}
-              <div className="rounded-3xl border border-border bg-background/60 p-4">
-                <label className="mb-2 flex items-center gap-1.5 text-[11px] font-extrabold uppercase tracking-wider text-muted-foreground">
-                  <Hash size={13} /> Tags
-                </label>
-                <div className="flex flex-wrap items-center gap-2">
-                  <AnimatePresence>
-                    {tags.map((tag) => (
-                      <motion.span
-                        key={tag}
-                        layout
-                        initial={{ opacity: 0, scale: 0.6 }}
-                        animate={{ opacity: 1, scale: 1 }}
-                        exit={{ opacity: 0, scale: 0.6 }}
-                        className="inline-flex items-center gap-1 rounded-full bg-primary px-3 py-1 text-xs font-bold text-primary-foreground"
-                      >
-                        #{tag}
-                        <button
-                          type="button"
-                          onClick={() => setTags(tags.filter((t) => t !== tag))}
-                          aria-label={`Remove ${tag}`}
-                          className="rounded-full hover:bg-white/20"
-                        >
-                          <X size={13} />
-                        </button>
-                      </motion.span>
-                    ))}
-                  </AnimatePresence>
-                  <input
-                    type="text"
-                    value={tagInput}
-                    onChange={(e) => setTagInput(e.target.value)}
-                    onKeyDown={handleAddTag}
-                    placeholder={tags.length ? 'Add another…' : 'Type a tag and press Enter'}
-                    className="min-w-[10rem] flex-1 bg-transparent py-1 text-sm font-semibold text-foreground placeholder:text-muted-foreground focus:outline-none"
-                  />
-                </div>
+              <InkButton
+                variant="outline"
+                size="sm"
+                onClick={() => submit('draft')}
+                disabled={saving || loadingEdit}
+              >
+                <Save size={14} aria-hidden />
+                <span className="hidden sm:inline">Save draft</span>
+              </InkButton>
+
+              <InkButton
+                variant="solid"
+                size="sm"
+                onClick={() => submit('published')}
+                disabled={saving || loadingEdit}
+              >
+                {saving ? (
+                  <Loader2 size={14} className="animate-spin" aria-hidden />
+                ) : (
+                  <Send size={14} aria-hidden />
+                )}
+                Send to a mentor
+              </InkButton>
+            </div>
+          </div>
+        </div>
+
+        <div className="mx-auto grid max-w-[84rem] grid-cols-1 gap-12 px-4 pt-10 sm:px-6 lg:px-8 xl:grid-cols-[minmax(0,1fr)_17rem]">
+          {/* ── The notebook ────────────────────────────────────────────── */}
+          <motion.div
+            initial={reduce ? false : { opacity: 0, y: 14 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
+            className="mx-auto w-full max-w-[44rem]"
+          >
+            {/* A mentor's note, when there is one to read */}
+            {feedback && (
+              <div className="mb-8 border border-accent/40 bg-accent/5 p-4">
+                <p className="label mb-2 text-accent">A note from your mentor</p>
+                <p className="font-reading text-base leading-relaxed text-foreground">{feedback}</p>
               </div>
-            </form>
+            )}
+
+            <p className="mb-6 font-reading text-sm italic text-ink-faint">{statusInfo.line}</p>
+
+            {/* Genre */}
+            <div className="mb-8 flex flex-wrap items-center gap-x-5 gap-y-2 border-b border-rule pb-4">
+              <span className="label">Genre</span>
+              {categories
+                .filter((c) => c !== 'All')
+                .map((cat) => {
+                  const active = category === cat;
+                  return (
+                    <button
+                      key={cat}
+                      type="button"
+                      onClick={() => setCategory(cat)}
+                      aria-pressed={active}
+                      className={cn(
+                        'text-xs transition-colors',
+                        active
+                          ? 'font-medium text-foreground underline decoration-2 underline-offset-4'
+                          : 'text-ink-faint hover:text-ink-soft'
+                      )}
+                      style={active ? { textDecorationColor: categoryMeta(cat).accent } : undefined}
+                    >
+                      {categoryMeta(cat).label}
+                    </button>
+                  );
+                })}
+            </div>
+
+            {/* Title */}
+            <label htmlFor="piece-title" className="sr-only">
+              Title
+            </label>
+            <div className="relative">
+              <textarea
+                id="piece-title"
+                ref={titleRef}
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                placeholder="Title"
+                rows={1}
+                className="field-sizing-content w-full resize-none overflow-hidden bg-transparent font-display type-5 font-semibold leading-[1.08] tracking-[-0.02em] text-foreground placeholder:text-ink-faint/50 focus:outline-none"
+              />
+              {!title && (
+                <span
+                  aria-hidden
+                  className="animate-caret pointer-events-none absolute left-0 top-[0.1em] h-[0.9em] w-[2px] bg-accent"
+                />
+              )}
+            </div>
+
+            {/* Body */}
+            <div className="mt-8">
+              {loadingEdit ? (
+                <div
+                  className="flex min-h-[26rem] items-center justify-center gap-2 border border-rule text-sm text-ink-soft"
+                  role="status"
+                >
+                  <Loader2 size={16} className="animate-spin text-primary" aria-hidden />
+                  Opening your pages…
+                </div>
+              ) : (
+                <RichTextEditor
+                  value={content}
+                  onChange={setContent}
+                  placeholder="Begin where it matters."
+                />
+              )}
+            </div>
+
+            {/* Everything else, folded away until it is needed */}
+            <div className="mt-10 border-t border-rule pt-5">
+              <button
+                type="button"
+                onClick={() => setShowDetails((s) => !s)}
+                aria-expanded={showDetails}
+                className="label flex items-center gap-2 text-ink-soft transition-colors hover:text-foreground"
+              >
+                <span aria-hidden className="text-sm leading-none">
+                  {showDetails ? '−' : '+'}
+                </span>
+                Summary, cover and tags
+              </button>
+
+              <AnimatePresence initial={false}>
+                {showDetails && (
+                  <motion.div
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: 'auto', opacity: 1 }}
+                    exit={{ height: 0, opacity: 0 }}
+                    transition={{ duration: 0.32, ease: [0.22, 1, 0.36, 1] }}
+                    className="overflow-hidden"
+                  >
+                    <div className="space-y-8 pt-6">
+                      {/* Summary */}
+                      <div>
+                        <div className="mb-2 flex items-baseline justify-between">
+                          <label htmlFor="piece-summary" className="label">
+                            Summary
+                          </label>
+                          <span className="text-[0.6875rem] tabular-nums text-ink-faint">
+                            {excerpt.length}/300
+                          </span>
+                        </div>
+                        <textarea
+                          id="piece-summary"
+                          value={excerpt}
+                          onChange={(e) => setExcerpt(e.target.value)}
+                          placeholder="One or two lines that make a reader want to begin."
+                          rows={2}
+                          maxLength={300}
+                          className="w-full resize-none border border-rule bg-input px-3.5 py-3 font-reading text-lg italic leading-relaxed text-foreground focus:border-primary focus:outline-none"
+                        />
+                        <p className="mt-1.5 text-xs text-ink-faint">
+                          This appears under the title and on every listing. It is required before
+                          you can send the piece.
+                        </p>
+                      </div>
+
+                      {/* Cover */}
+                      <div>
+                        <p className="label mb-2">Cover image</p>
+                        {featuredImage ? (
+                          <div className="group relative border border-rule">
+                            <img
+                              src={featuredImage}
+                              alt="Your chosen cover"
+                              className="h-56 w-full object-cover"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => setFeaturedImage(null)}
+                              className="absolute right-2 top-2 inline-flex items-center gap-1.5 border border-rule bg-card px-2.5 py-1.5 text-xs font-medium text-ink-soft hover:text-destructive"
+                            >
+                              <X size={13} aria-hidden /> Remove
+                            </button>
+                          </div>
+                        ) : (
+                          <label
+                            onDragOver={(e) => {
+                              e.preventDefault();
+                              setIsDragging(true);
+                            }}
+                            onDragLeave={(e) => {
+                              e.preventDefault();
+                              setIsDragging(false);
+                            }}
+                            onDrop={(e) => {
+                              e.preventDefault();
+                              setIsDragging(false);
+                              const file = e.dataTransfer.files?.[0];
+                              if (file) handleImageFile(file);
+                            }}
+                            className={cn(
+                              'flex cursor-pointer items-center gap-4 border border-dashed p-4 transition-colors',
+                              isDragging
+                                ? 'border-accent bg-accent/5'
+                                : 'border-rule-strong hover:border-accent'
+                            )}
+                          >
+                            <ImagePlus size={20} className="shrink-0 text-ink-faint" aria-hidden />
+                            <span>
+                              <span className="block text-sm font-medium text-foreground">
+                                Add a cover, if you have one
+                              </span>
+                              <span className="mt-0.5 block text-xs text-ink-soft">
+                                Drop a file here or click to choose. Without one, we set your title
+                                in type instead — which often looks better.
+                              </span>
+                            </span>
+                            <input
+                              type="file"
+                              accept="image/*"
+                              onChange={handleImageUpload}
+                              className="hidden"
+                            />
+                          </label>
+                        )}
+                      </div>
+
+                      {/* Tags */}
+                      <div>
+                        <label htmlFor="piece-tags" className="label mb-2 block">
+                          Tags
+                        </label>
+                        <div className="flex flex-wrap items-center gap-2 border-b border-rule pb-2">
+                          <AnimatePresence initial={false}>
+                            {tags.map((tag) => (
+                              <motion.span
+                                key={tag}
+                                layout
+                                initial={{ opacity: 0, y: 4 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                exit={{ opacity: 0, y: -4 }}
+                                className="inline-flex items-center gap-1 border border-rule px-2 py-1 text-xs text-ink-soft"
+                              >
+                                #{tag}
+                                <button
+                                  type="button"
+                                  onClick={() => setTags(tags.filter((t) => t !== tag))}
+                                  aria-label={`Remove the tag ${tag}`}
+                                  className="hover:text-destructive"
+                                >
+                                  <X size={11} aria-hidden />
+                                </button>
+                              </motion.span>
+                            ))}
+                          </AnimatePresence>
+                          <input
+                            id="piece-tags"
+                            type="text"
+                            value={tagInput}
+                            onChange={(e) => setTagInput(e.target.value)}
+                            onKeyDown={handleAddTag}
+                            placeholder={tags.length ? 'Another…' : 'Type a tag, press Enter'}
+                            className="min-w-[9rem] flex-1 bg-transparent py-1 text-sm text-foreground focus:outline-none"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
           </motion.div>
 
-          {/* Inspiration rail */}
-          <aside className="hidden xl:block">
-            <div className="sticky top-28 space-y-4">
-              <div className="flex items-center gap-2 font-display text-sm font-extrabold text-foreground">
-                <Lightbulb size={16} className="text-accent" /> Writing sparks
+          {/* ── The margin: what happens next, then prompts ─────────────── */}
+          <aside className="xl:pt-2">
+            <div className="xl:sticky xl:top-36">
+              <div className="border border-rule bg-card p-5">
+                <p className="label mb-4">What happens after you send it</p>
+                <ol className="space-y-4">
+                  {[
+                    {
+                      n: '1',
+                      t: 'A mentor reads it',
+                      d: 'Your piece goes to the ASYV mentors. Nobody else can see it yet.',
+                    },
+                    {
+                      n: '2',
+                      t: 'They publish it, or write back',
+                      d: 'If something needs work, their note comes back to you and the piece returns to your drafts.',
+                    },
+                    {
+                      n: '3',
+                      t: 'It appears on the site',
+                      d: 'Once approved it is listed under its genre for everyone to read.',
+                    },
+                  ].map((step) => (
+                    <li key={step.n} className="flex gap-3">
+                      <span
+                        aria-hidden
+                        className="shrink-0 font-reading text-sm tabular-nums text-accent"
+                      >
+                        {step.n}
+                      </span>
+                      <span>
+                        <span className="block text-[0.8125rem] font-medium text-foreground">
+                          {step.t}
+                        </span>
+                        <span className="mt-0.5 block text-xs leading-relaxed text-ink-soft">
+                          {step.d}
+                        </span>
+                      </span>
+                    </li>
+                  ))}
+                </ol>
+                <p className="mt-5 border-t border-rule pt-4 text-xs leading-relaxed text-ink-faint">
+                  Editing a published piece sends it back for another read, so it never changes
+                  under a reader without a mentor seeing it first.
+                </p>
               </div>
-              {SPARKS.map((s, i) => (
-                <motion.button
-                  key={s.text}
-                  type="button"
-                  initial={{ opacity: 0, x: 20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: 0.2 + i * 0.08 }}
-                  whileHover={{ y: -4, rotate: 0, scale: 1.03 }}
-                  style={{ rotate: i % 2 ? 1.5 : -1.5 }}
-                  onClick={() => {
-                    if (!title.trim()) setTitle(s.text);
-                    else toast('Spark copied into your mind ✨', { description: s.text });
-                  }}
-                  className={cn(
-                    'block w-full rounded-2xl border border-black/5 p-4 text-left shadow-[var(--shadow-note)] transition-shadow hover:shadow-[var(--shadow-float)]',
-                    ['bg-note-mint', 'bg-note-butter', 'bg-note-sky', 'bg-note-lilac'][i]
-                  )}
-                >
-                  <s.icon size={20} strokeWidth={2.5} className={s.tone} />
-                  <span className="mt-1 block font-hand text-xl leading-tight text-foreground">{s.text}</span>
-                </motion.button>
-              ))}
-              <div className="rounded-2xl border-2 border-dashed border-primary/30 p-4 text-xs font-semibold leading-relaxed text-muted-foreground">
-                <Sparkles size={14} className="mb-1 text-primary" />
-                Every note is reviewed by an ASYV mentor before it appears on the wall.
+
+              <div className="mt-8">
+                <p className="label mb-4">If you are stuck</p>
+                <ul className="divide-y divide-rule border-y border-rule">
+                  {SPARKS.map((spark) => (
+                    <li key={spark}>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (!title.trim()) setTitle(spark.replace(/\.$/, ''));
+                          else toast('Keep it in mind', { description: spark });
+                        }}
+                        className="group block w-full py-3.5 text-left font-reading text-[0.9375rem] italic leading-snug text-ink-soft transition-colors hover:text-foreground"
+                      >
+                        {spark}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+                <p className="mt-3 text-xs text-ink-faint">
+                  Tap one to use it as your title, then change it however you like.
+                </p>
               </div>
+
+              <p
+                className="mt-8 font-reading text-base italic leading-relaxed text-ink-faint"
+                style={{ color: meta.accent, opacity: 0.8 }}
+              >
+                <span aria-hidden>{meta.mark}</span> You are writing for {meta.label}.
+              </p>
             </div>
           </aside>
         </div>

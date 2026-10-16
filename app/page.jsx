@@ -2,26 +2,31 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { motion } from 'framer-motion';
-import { ArrowRight, Flame, PenLine, Sparkles, Users, Heart, StickyNote, Compass, Pin } from 'lucide-react';
+import { motion, useReducedMotion } from 'framer-motion';
+import { ArrowRight, PenLine } from 'lucide-react';
+import { toast } from 'sonner';
 import { Header } from '@/components/shared/Header';
 import { Footer } from '@/components/shared/Footer';
-import { NoteBuddy } from '@/components/shared/NoteBuddy';
 import { EssayCard, EssayCardSkeleton } from '@/components/board/EssayCard';
-import { MasonryBoard } from '@/components/board/MasonryBoard';
+import { PostCover } from '@/components/editorial/GenreCover';
+import { SectionHead, Kicker, GenreTag, ByLine, EmptyNote, InkButton } from '@/components/editorial/Bits';
 import { api } from '@/lib/api-client';
 import { categories } from '@/lib/posts';
-import { categoryMeta, boardContainer, boardItem } from '@/lib/board';
-import { toast } from 'sonner';
+import { categoryMeta, boardContainer, boardItem, riseIn } from '@/lib/board';
+import { openingLine } from '@/lib/essay';
 
+/* Prompts written for ASYV students — editorial copy, rotated by the date
+   so the page feels alive without anything being invented about the data. */
 const PROMPTS = [
   'Describe a moment at ASYV that changed how you see yourself.',
   'Write a letter to the student you were on your first day in the village.',
-  'What does "Tikkun Olam" — repairing the world — mean in your daily life?',
-  'Pick one sound from the village and turn it into a short story.',
+  'What does Tikkun Olam — repairing the world — mean in your ordinary Tuesday?',
+  'Pick one sound from the village and build a short story around it.',
+  'Argue for something most people in your class disagree with.',
 ];
 
 export default function Home() {
+  const reduce = useReducedMotion();
   const [user, setUser] = useState(null);
   const [trending, setTrending] = useState([]);
   const [recent, setRecent] = useState([]);
@@ -40,13 +45,14 @@ export default function Home() {
       .finally(() => setLoading(false));
   }, []);
 
-  const stats = useMemo(() => {
+  /* The issue line. Every number here is counted from the published pieces
+     that came back from the API — nothing is estimated. */
+  const issue = useMemo(() => {
     const writers = new Set(recent.map((p) => p.author?.id).filter(Boolean)).size;
-    const hearts = recent.reduce((sum, p) => sum + (p.likes || 0), 0);
-    return { notes: recent.length, writers, hearts };
+    return { pieces: recent.length, writers };
   }, [recent]);
 
-  const categoryCounts = useMemo(() => {
+  const genreCounts = useMemo(() => {
     const counts = {};
     recent.forEach((p) => {
       counts[p.category] = (counts[p.category] || 0) + 1;
@@ -59,7 +65,9 @@ export default function Home() {
     e?.stopPropagation();
     const flip = (list) =>
       list.map((p) =>
-        p.id === postId ? { ...p, liked: !p.liked, likes: Math.max(0, (p.likes || 0) + (p.liked ? -1 : 1)) } : p
+        p.id === postId
+          ? { ...p, liked: !p.liked, likes: Math.max(0, (p.likes || 0) + (p.liked ? -1 : 1)) }
+          : p
       );
     setTrending(flip);
     setRecent(flip);
@@ -68,256 +76,328 @@ export default function Home() {
     } catch {
       setTrending(flip);
       setRecent(flip);
-      toast.error('Sign in to send some love 💚');
+      toast.error('Sign in to leave a mark on a piece.');
     }
   };
 
   const firstName = user?.name?.split(' ')[0];
-  const heroNotes = trending.slice(0, 3);
+  const lead = trending[0] || recent[0];
+  const seconds = (trending.length ? trending : recent).slice(1, 4);
+  const restOfRecent = recent.filter((p) => p.id !== lead?.id).slice(0, 9);
+  const today = new Date().toLocaleDateString('en-GB', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  });
 
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen bg-paper">
       <Header />
 
-      <section>
-        <div className="mx-auto max-w-7xl px-4 pt-14 pb-20 sm:px-6 lg:px-8 lg:pt-20 lg:pb-24">
-          <div className="grid grid-cols-1 items-start gap-14 lg:grid-cols-[1.05fr_1fr] lg:gap-16">
-            <motion.div variants={boardContainer} initial="hidden" animate="show" className="lg:pt-8">
-              <motion.div variants={boardItem} className="mb-7 flex items-center gap-3">
-                <NoteBuddy />
-                <div>
-                  <p className="text-xs font-extrabold uppercase text-primary">ASYV Writing</p>
-                  <p className="mt-1 text-sm font-medium text-muted-foreground">
-                    {firstName ? `Muraho, ${firstName}` : 'Stories from the village'}
-                  </p>
-                </div>
+      <main id="main">
+        {/* ── Opening statement ──────────────────────────────────────────── */}
+        <section className="relative border-b border-rule paper-grain">
+          <div className="relative mx-auto max-w-[84rem] px-4 pb-16 pt-14 sm:px-6 lg:px-8 lg:pb-24 lg:pt-20">
+            <motion.div
+              initial={reduce ? false : 'hidden'}
+              animate="show"
+              variants={boardContainer}
+              className="max-w-4xl"
+            >
+              <motion.div variants={boardItem} className="mb-8 flex flex-wrap items-center gap-x-4 gap-y-2">
+                <Kicker as="p">
+                  {firstName ? `Muraho, ${firstName}` : 'The student magazine of Agahozo-Shalom'}
+                </Kicker>
+                <span aria-hidden className="h-px w-8 bg-rule-strong" />
+                <p className="label text-ink-soft">{today}</p>
               </motion.div>
 
               <motion.h1
                 variants={boardItem}
-                className="max-w-xl font-display text-4xl font-extrabold leading-[1.06] text-foreground sm:text-5xl lg:text-6xl"
+                className="font-display type-6 font-semibold leading-[0.98] tracking-[-0.025em] text-foreground"
               >
-                Pin your <span className="font-hand text-[1.16em] font-semibold text-primary">story</span>
-                <br />to the village wall.
+                We write it down
+                <br />
+                so it <span className="italic text-primary">stays</span>.
               </motion.h1>
 
-              <motion.p variants={boardItem} className="mt-7 max-w-lg text-base leading-7 text-muted-foreground sm:text-lg sm:leading-8">
-                A shared wall for Agahozo-Shalom students to leave essays, poems and big ideas. Read a friend&apos;s note,
-                leave a reaction, or add your own voice.
+              <motion.p
+                variants={boardItem}
+                className="mt-8 max-w-xl font-reading type-2 leading-relaxed text-ink-soft"
+              >
+                Essays, stories, poems and research by students at Agahozo-Shalom Youth Village.
+                Written here, read by a mentor, then printed for everyone.
               </motion.p>
 
-              <motion.div variants={boardItem} className="mt-9 flex flex-wrap items-center gap-3">
-                <Link
-                  href="/create"
-                  className="group inline-flex items-center gap-2 rounded-xl bg-primary px-5 py-3 text-sm font-bold text-primary-foreground transition-colors hover:bg-primary/90"
-                >
-                  <PenLine size={17} className="transition-transform group-hover:-rotate-12" />
-                  Start a note
-                </Link>
-                <Link
-                  href="/posts"
-                  className="group inline-flex items-center gap-2 rounded-xl border border-border bg-white px-5 py-3 text-sm font-bold text-foreground transition-colors hover:border-primary hover:text-primary"
-                >
-                  <Compass size={17} />
-                  Explore the wall
-                  <ArrowRight size={16} className="transition-transform group-hover:translate-x-1" />
+              <motion.div variants={boardItem} className="mt-10 flex flex-wrap items-center gap-6">
+                <InkButton href="/posts" variant="solid" size="lg">
+                  Start reading
+                  <ArrowRight size={16} aria-hidden />
+                </InkButton>
+                <Link href="/create" className="group inline-flex items-center gap-2 text-sm font-medium text-foreground">
+                  <PenLine size={15} className="text-accent" aria-hidden />
+                  <span className="ink-underline">Add your own piece</span>
                 </Link>
               </motion.div>
 
-              <motion.div variants={boardItem} className="mt-12 max-w-xl">
-                <p className="mb-3 text-[10px] font-extrabold uppercase text-muted-foreground">A little life on the wall</p>
-                <div className="grid grid-cols-3 divide-x divide-border border-y border-border py-4">
+              {/* Issue line — real counts only */}
+              <motion.dl
+                variants={boardItem}
+                className="mt-14 flex flex-wrap items-baseline gap-x-8 gap-y-4 border-t border-rule pt-6 text-sm"
+              >
                 {[
-                  { icon: StickyNote, value: stats.notes, label: 'notes pinned' },
-                  { icon: Users, value: stats.writers, label: 'student writers' },
-                  { icon: Heart, value: stats.hearts, label: 'hearts given' },
-                ].map(({ icon: Icon, value, label }, index) => (
-                  <div key={label} className={`flex items-center gap-3 px-3 first:pl-0 sm:px-5 ${index === 2 ? 'pr-0' : ''}`}>
-                    <Icon size={17} strokeWidth={1.8} className="shrink-0 text-primary" aria-hidden />
-                    <div className="min-w-0">
-                      <p className="font-display text-xl font-extrabold leading-none text-foreground sm:text-2xl">{loading ? '–' : value}</p>
-                      <p className="mt-1.5 text-[10px] font-bold leading-tight text-muted-foreground sm:text-xs">{label}</p>
-                    </div>
+                  { term: 'Pieces published', value: issue.pieces },
+                  { term: 'Student writers', value: issue.writers },
+                  { term: 'Genres', value: categories.length - 1 },
+                ].map((stat) => (
+                  <div key={stat.term} className="flex items-baseline gap-2.5">
+                    <dd className="font-display type-3 font-semibold leading-none text-foreground">
+                      {loading ? '—' : stat.value}
+                    </dd>
+                    <dt className="label">{stat.term}</dt>
                   </div>
                 ))}
-                </div>
-              </motion.div>
+              </motion.dl>
             </motion.div>
+          </div>
+        </section>
 
-            {/* Trending cluster */}
-            <div className="relative">
-              <div className="mb-5 flex items-center gap-2">
-                <span className="inline-flex items-center gap-1.5 text-xs font-bold text-foreground">
-                  <Flame size={14} className="text-primary" /> Trending at ASYV
-                </span>
-                <span className="text-xs text-muted-foreground">/ this week</span>
+        {/* ── The lead piece ─────────────────────────────────────────────── */}
+        <section className="mx-auto max-w-[84rem] px-4 py-16 sm:px-6 lg:px-8 lg:py-20">
+          {loading ? (
+            <div className="grid gap-8 lg:grid-cols-[1.25fr_1fr]">
+              <div className="aspect-[16/10] skeleton-shimmer" />
+              <div className="space-y-4">
+                <div className="h-3 w-28 skeleton-shimmer" />
+                <div className="h-10 w-full skeleton-shimmer" />
+                <div className="h-4 w-full skeleton-shimmer" />
+                <div className="h-4 w-4/5 skeleton-shimmer" />
               </div>
-              {loading ? (
-                <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
-                  <EssayCardSkeleton tall />
-                  <EssayCardSkeleton />
+            </div>
+          ) : !lead ? (
+            <EmptyNote
+              title="Nothing is printed yet"
+              action={
+                <InkButton href="/create" variant="solid">
+                  <PenLine size={15} aria-hidden /> Write the first piece
+                </InkButton>
+              }
+            >
+              The first published piece will open this page. It could be yours.
+            </EmptyNote>
+          ) : (
+            <>
+              <motion.article
+                initial={reduce ? false : { opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true, margin: '-60px' }}
+                transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }}
+                className="group grid items-center gap-8 lg:grid-cols-[1.15fr_1fr] lg:gap-14"
+              >
+                <Link href={`/posts/${lead.id}`} className="block overflow-hidden border border-rule" tabIndex={-1} aria-hidden="true">
+                  <PostCover post={lead} ratio="16 / 10" priority showLabel={false} />
+                </Link>
+
+                <div>
+                  <div className="mb-5 flex items-center gap-3">
+                    <Kicker>Lead piece</Kicker>
+                    <span aria-hidden className="h-px w-6 bg-rule-strong" />
+                    <GenreTag category={lead.category} />
+                  </div>
+
+                  <h2 className="font-display type-5 font-semibold leading-[1.04] tracking-[-0.02em] text-foreground">
+                    <Link href={`/posts/${lead.id}`}>
+                      <span className="ink-underline">{lead.title}</span>
+                    </Link>
+                  </h2>
+
+                  <p className="mt-5 font-reading type-2 leading-relaxed text-ink-soft">
+                    {lead.excerpt?.trim() || openingLine(lead.content || '', 220)}
+                  </p>
+
+                  <ByLine
+                    author={lead.author}
+                    date={lead.created_at}
+                    readTime={lead.read_time}
+                    className="mt-7 border-t border-rule pt-5"
+                  />
                 </div>
-              ) : heroNotes.length === 0 ? (
-                <EmptyWall />
-              ) : (
+              </motion.article>
+
+              {/* Three more, in a row of hairline columns */}
+              {seconds.length > 0 && (
                 <motion.div
                   variants={boardContainer}
-                  initial="hidden"
-                  animate="show"
-                  className="grid grid-cols-1 gap-6 sm:grid-cols-2"
+                  initial={reduce ? false : 'hidden'}
+                  whileInView="show"
+                  viewport={{ once: true, margin: '-60px' }}
+                  className="mt-16 grid gap-px border-t border-rule bg-rule sm:grid-cols-2 lg:grid-cols-3"
                 >
-                  <div className="space-y-6 sm:pt-6">
-                    {heroNotes[0] && <EssayCard post={heroNotes[0]} onLike={handleLike} monochrome />}
-                  </div>
-                  <div className="space-y-6">
-                    {heroNotes.slice(1).map((p) => (
-                      <EssayCard key={p.id} post={{ ...p, featured_image: '' }} onLike={handleLike} monochrome />
-                    ))}
-                    <PromptNote prompt={PROMPTS[promptIndex]} />
-                  </div>
+                  {seconds.map((post, i) => (
+                    <motion.article
+                      key={post.id}
+                      variants={boardItem}
+                      className="group bg-paper px-0 pt-7 sm:px-6 lg:px-8"
+                    >
+                      <div className="flex items-baseline gap-3">
+                        <span aria-hidden className="font-reading text-sm text-ink-faint">
+                          {String(i + 2).padStart(2, '0')}
+                        </span>
+                        <GenreTag category={post.category} withMark={false} />
+                      </div>
+                      <h3 className="mt-3 font-display type-2 font-semibold leading-snug text-foreground">
+                        <Link href={`/posts/${post.id}`}>
+                          <span className="ink-underline">{post.title}</span>
+                        </Link>
+                      </h3>
+                      <p className="mt-2.5 font-reading text-[0.9375rem] leading-relaxed text-ink-soft line-clamp-3">
+                        {post.excerpt?.trim() || openingLine(post.content || '')}
+                      </p>
+                      <ByLine
+                        author={post.author}
+                        readTime={post.read_time}
+                        className="mt-4 pb-7 text-[0.8125rem]"
+                      />
+                    </motion.article>
+                  ))}
                 </motion.div>
               )}
-            </div>
+            </>
+          )}
+        </section>
+
+        {/* ── Genre index ────────────────────────────────────────────────── */}
+        <section className="border-y border-rule bg-card">
+          <div className="mx-auto max-w-[84rem] px-4 py-16 sm:px-6 lg:px-8 lg:py-20">
+            <SectionHead
+              kicker="The shelves"
+              title="Find the kind of writing you came for"
+              href="/posts"
+              cta="Browse everything"
+            />
+
+            <ul className="divide-y divide-rule border-y border-rule">
+              {categories
+                .filter((c) => c !== 'All')
+                .map((cat, i) => {
+                  const meta = categoryMeta(cat);
+                  const count = genreCounts[cat] || 0;
+                  return (
+                    <li key={cat}>
+                      <Link
+                        href={`/posts?category=${encodeURIComponent(cat)}`}
+                        className="group flex items-center gap-4 py-5 transition-colors sm:gap-6"
+                      >
+                        <span
+                          aria-hidden
+                          className="w-6 shrink-0 font-reading text-xl leading-none transition-transform duration-500 group-hover:-translate-y-0.5"
+                          style={{ color: meta.accent }}
+                        >
+                          {meta.mark}
+                        </span>
+                        <span className="min-w-0 flex-1">
+                          <span className="block font-display type-2 font-semibold text-foreground">
+                            <span className="ink-underline">{meta.label}</span>
+                          </span>
+                          <span className="mt-1 block font-reading text-[0.9375rem] text-ink-soft">
+                            {meta.blurb}
+                          </span>
+                        </span>
+                        <span className="label shrink-0 tabular-nums">
+                          {loading ? '—' : `${count} ${count === 1 ? 'piece' : 'pieces'}`}
+                        </span>
+                        <ArrowRight
+                          size={16}
+                          aria-hidden
+                          className="hidden shrink-0 text-ink-faint transition-transform duration-300 group-hover:translate-x-1 group-hover:text-accent sm:block"
+                        />
+                      </Link>
+                    </li>
+                  );
+                })}
+            </ul>
           </div>
-        </div>
-      </section>
+        </section>
 
-      {/* Creative boards */}
-      <section className="mx-auto max-w-7xl px-4 pt-8 pb-20 sm:px-6 lg:px-8">
-        <SectionTitle kicker="Boards" title="Pick a board, find your people" href="/posts" cta="All boards" />
-        <motion.div
-          variants={boardContainer}
-          initial="hidden"
-          whileInView="show"
-          viewport={{ once: true, margin: '-60px' }}
-          className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5"
-        >
-          {categories
-            .filter((c) => c !== 'All')
-            .map((cat, i) => {
-              const meta = categoryMeta(cat);
-              const Icon = meta.icon;
-              return (
-                <motion.div key={cat} variants={boardItem} whileHover={{ y: -3 }}>
-                  <Link
-                    href={`/posts?category=${encodeURIComponent(cat)}`}
-                    className="relative flex h-36 flex-col justify-between rounded-2xl border border-border bg-white p-4 transition-colors hover:border-primary/50"
-                  >
-                    <span className="flex items-center justify-between">
-                      <span className="grid h-10 w-10 place-items-center rounded-xl bg-primary/5 text-primary">
-                        <Icon size={20} strokeWidth={1.8} />
-                      </span>
-                      <span className="font-mono text-[10px] text-muted-foreground">0{i + 1}</span>
-                    </span>
-                    <div>
-                      <p className="font-display text-base font-extrabold leading-tight text-foreground">{meta.label}</p>
-                      <p className="text-xs font-bold text-muted-foreground">
-                        {categoryCounts[cat] || 0} {categoryCounts[cat] === 1 ? 'note' : 'notes'}
-                      </p>
-                    </div>
-                  </Link>
-                </motion.div>
-              );
-            })}
-        </motion.div>
-      </section>
+        {/* ── Recently published ─────────────────────────────────────────── */}
+        <section className="mx-auto max-w-[84rem] px-4 py-16 sm:px-6 lg:px-8 lg:py-20">
+          <SectionHead
+            kicker="Fresh ink"
+            title="Just published"
+            href="/posts"
+            cta="All pieces"
+          />
 
-      {/* Fresh notes masonry */}
-      <section className="mx-auto max-w-7xl px-4 pt-8 pb-24 sm:px-6 lg:px-8">
-        <SectionTitle kicker="Fresh ink" title="Just pinned by students" href="/posts" cta="Open the full wall" />
-        {loading ? (
-          <div className="columns-1 gap-5 sm:columns-2 lg:columns-3 xl:columns-4">
-            {[1, 2, 3, 4].map((n) => (
-              <EssayCardSkeleton key={n} tall={n % 2 === 0} />
-            ))}
-          </div>
-        ) : recent.length === 0 ? (
-          <EmptyWall />
-        ) : (
-          <MasonryBoard>
-            {recent.slice(0, 8).map((post) => (
-              <EssayCard key={post.id} post={post} onLike={handleLike} monochrome />
-            ))}
-          </MasonryBoard>
-        )}
-      </section>
-
-      {/* CTA */}
-      <section className="mx-auto max-w-7xl px-4 pt-4 pb-20 sm:px-6 lg:px-8">
-        <div className="flex flex-col items-start justify-between gap-6 rounded-2xl border border-border bg-white px-6 py-9 sm:px-10 md:flex-row md:items-center sm:py-11">
-            <div>
-              <p className="text-xs font-extrabold uppercase text-primary">Your voice matters here</p>
-              <h2 className="mt-2 font-display text-2xl font-extrabold text-foreground sm:text-3xl">Got something to say? Pin it.</h2>
-              <p className="mt-3 max-w-lg text-sm leading-relaxed text-muted-foreground">
-                Every note is reviewed by an ASYV mentor before it goes live on the wall.
-              </p>
+          {loading ? (
+            <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+              {[1, 2, 3].map((n) => (
+                <EssayCardSkeleton key={n} tall={n === 1} />
+              ))}
             </div>
-            <Link
-              href={user ? '/create' : '/auth/signup'}
-              className="inline-flex items-center gap-2 whitespace-nowrap rounded-xl bg-primary px-5 py-3 text-sm font-bold text-primary-foreground transition-colors hover:bg-primary/90"
+          ) : restOfRecent.length === 0 ? (
+            <EmptyNote
+              title="No new pieces this week"
+              action={
+                <InkButton href="/create" variant="outline">
+                  <PenLine size={15} aria-hidden /> Write something
+                </InkButton>
+              }
             >
-              <Sparkles size={17} />
-              {user ? 'Write a new note' : 'Join the wall'}
-            </Link>
-        </div>
-      </section>
+              When students publish, their work appears here first.
+            </EmptyNote>
+          ) : (
+            <motion.div
+              variants={boardContainer}
+              initial={reduce ? false : 'hidden'}
+              whileInView="show"
+              viewport={{ once: true, margin: '-60px' }}
+              className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3"
+            >
+              {restOfRecent.map((post) => (
+                <EssayCard key={post.id} post={post} onLike={handleLike} />
+              ))}
+            </motion.div>
+          )}
+        </section>
+
+        {/* ── The prompt box ─────────────────────────────────────────────── */}
+        <section className="border-t border-rule bg-card">
+          <div className="mx-auto max-w-[84rem] px-4 py-16 sm:px-6 lg:px-8">
+            <motion.div
+              variants={riseIn}
+              initial={reduce ? false : 'hidden'}
+              whileInView="show"
+              viewport={{ once: true, margin: '-60px' }}
+              className="grid items-end gap-10 lg:grid-cols-[1.3fr_1fr]"
+            >
+              <div>
+                <Kicker className="mb-4">From the prompt box</Kicker>
+                <p className="font-display type-4 font-normal italic leading-[1.2] text-foreground">
+                  “{PROMPTS[promptIndex]}”
+                </p>
+                <p className="mt-5 font-reading text-[0.9375rem] text-ink-soft">
+                  A new prompt appears here each day. You are not obliged to use it.
+                </p>
+              </div>
+
+              <div className="lg:text-right">
+                <p className="font-reading type-1 leading-relaxed text-ink-soft">
+                  Write a draft, keep it as long as you like, then send it to a mentor when it is
+                  ready. Nothing is published until they have read it.
+                </p>
+                <div className="mt-6 lg:flex lg:justify-end">
+                  <InkButton href={user ? '/create' : '/auth/signup'} variant="accent" size="lg">
+                    <PenLine size={16} aria-hidden />
+                    {user ? 'Open a blank page' : 'Join and start writing'}
+                  </InkButton>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        </section>
+      </main>
 
       <Footer />
     </div>
   );
 }
-function SectionTitle({ kicker, title, href, cta }) {
-  return (
-    <div className="mb-8 flex items-end justify-between gap-4">
-      <div>
-        <p className="mb-1 text-xs font-bold uppercase text-primary">{kicker}</p>
-        <h2 className="font-display text-2xl font-extrabold text-foreground sm:text-3xl">{title}</h2>
-      </div>
-      {href && (
-        <Link
-          href={href}
-          className="group hidden items-center gap-1.5 rounded-full border border-border bg-card px-4 py-2 text-xs font-extrabold text-foreground transition-all hover:border-primary/40 hover:text-primary sm:inline-flex"
-        >
-          {cta} <ArrowRight size={14} className="transition-transform group-hover:translate-x-0.5" />
-        </Link>
-      )}
-    </div>
-  );
-}
-
-function PromptNote({ prompt }) {
-  return (
-    <motion.div
-      variants={boardItem}
-      whileHover={{ y: -6, scale: 1.03, rotate: 0 }}
-      style={{ rotate: 1.5 }}
-      className="relative rounded-2xl border border-dashed border-primary/40 bg-white p-5"
-    >
-      <p className="text-xs font-bold uppercase text-primary">Today&apos;s prompt</p>
-      <p className="mt-3 font-display text-lg font-semibold leading-snug text-foreground">{prompt}</p>
-      <Link
-        href="/create"
-        className="mt-4 inline-flex items-center gap-1.5 text-sm font-bold text-primary hover:underline"
-      >
-        <PenLine size={13} /> Answer it
-      </Link>
-    </motion.div>
-  );
-}
-
-function EmptyWall() {
-  return (
-    <div className="rounded-3xl border-2 border-dashed border-border bg-card/70 p-10 text-center">
-      <Pin size={40} className="mx-auto -rotate-12 text-primary" />
-      <h3 className="mt-3 font-display text-xl font-extrabold">The wall is waiting</h3>
-      <p className="mt-1 text-sm text-muted-foreground">Be the first ASYV student to pin a note.</p>
-      <Link
-        href="/create"
-        className="mt-5 inline-flex items-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-sm font-bold text-primary-foreground transition-colors hover:bg-primary/90"
-      >
-        <PenLine size={16} /> Start a note
-      </Link>
-    </div>
-  );
-}
-

@@ -1,41 +1,40 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import Link from 'next/link';
-import { Header } from '@/components/shared/Header';
-import { Footer } from '@/components/shared/Footer';
-import { NoteBuddy } from '@/components/shared/NoteBuddy';
-import { EssayCard, EssayCardSkeleton } from '@/components/board/EssayCard';
-import { MasonryBoard } from '@/components/board/MasonryBoard';
-import { FreeformBoard } from '@/components/board/FreeformBoard';
-import { categories, allTags } from '@/lib/posts';
-import { categoryMeta } from '@/lib/board';
-import { api } from '@/lib/api-client';
+import { motion, useReducedMotion } from 'framer-motion';
+import { toast } from 'sonner';
 import {
   Search,
   X,
-  Flame,
-  Clock3,
-  Heart,
-  LayoutGrid,
-  Move,
   PenLine,
-  Hash,
+  Rows3,
+  LayoutGrid,
+  Heart,
+  Bookmark,
   Share2,
   Check,
 } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { toast } from 'sonner';
+import { Header } from '@/components/shared/Header';
+import { Footer } from '@/components/shared/Footer';
+import { EssayCard, EssayCardSkeleton } from '@/components/board/EssayCard';
+import { Kicker, GenreTag, EmptyNote, InkButton } from '@/components/editorial/Bits';
+import { api } from '@/lib/api-client';
+import { categories, tagsFromPosts } from '@/lib/posts';
+import { categoryMeta, boardContainer, boardItem, formatShortDate } from '@/lib/board';
+import { openingLine } from '@/lib/essay';
 import { cn } from '@/lib/utils';
 
 const SORTS = [
-  { value: 'recent', label: 'Fresh', icon: Clock3 },
-  { value: 'trending', label: 'Trending', icon: Flame },
-  { value: 'most_liked', label: 'Most loved', icon: Heart },
+  { value: 'recent', label: 'Newest' },
+  { value: 'trending', label: 'Most read' },
+  { value: 'most_liked', label: 'Most liked' },
 ];
 
 export default function PostsPage() {
+  const reduce = useReducedMotion();
   const [posts, setPosts] = useState([]);
+  const [allTags, setAllTags] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('All');
@@ -43,8 +42,7 @@ export default function PostsPage() {
   const [sortBy, setSortBy] = useState('recent');
   const [bookmarkedPosts, setBookmarkedPosts] = useState([]);
   const [copiedId, setCopiedId] = useState(null);
-  const [view, setView] = useState('masonry');
-  const [showTags, setShowTags] = useState(false);
+  const [view, setView] = useState('index');
 
   const searchInputRef = useRef(null);
 
@@ -54,8 +52,8 @@ export default function PostsPage() {
     const search = params.get('search');
     if (cat && categories.includes(cat)) setSelectedCategory(cat);
     if (search) setSearchQuery(search);
-    const saved = localStorage.getItem('asyv-board-view');
-    if (saved === 'freeform' || saved === 'masonry') setView(saved);
+    const saved = localStorage.getItem('asyv-shelf-view');
+    if (saved === 'index' || saved === 'gallery') setView(saved);
   }, []);
 
   useEffect(() => {
@@ -88,9 +86,21 @@ export default function PostsPage() {
       .finally(() => setLoading(false));
   }, [searchQuery, selectedCategory, selectedTags, sortBy]);
 
+  /* The tag list is built from the tags writers have actually used, so the
+     filters can never offer a tag that returns nothing. It is kept from the
+     unfiltered load so it does not shrink away as you filter. */
+  useEffect(() => {
+    api
+      .getPosts({ sort: 'recent' })
+      .then((data) => setAllTags(tagsFromPosts(data.posts || []).slice(0, 24)))
+      .catch(() => {});
+  }, []);
+
   const changeView = (next) => {
     setView(next);
-    localStorage.setItem('asyv-board-view', next);
+    try {
+      localStorage.setItem('asyv-shelf-view', next);
+    } catch {}
   };
 
   const toggleTag = (tag) => {
@@ -98,10 +108,8 @@ export default function PostsPage() {
   };
 
   const handleLike = async (postId, e) => {
-    if (e) {
-      e.preventDefault();
-      e.stopPropagation();
-    }
+    e?.preventDefault();
+    e?.stopPropagation();
     const flip = (prevPosts) =>
       prevPosts.map((p) =>
         p.id === postId ? { ...p, liked: !p.liked, likes: Math.max(0, p.likes + (p.liked ? -1 : 1)) } : p
@@ -112,15 +120,13 @@ export default function PostsPage() {
       setPosts((prevPosts) => prevPosts.map((p) => (p.id === postId ? { ...p, liked: result.liked } : p)));
     } catch {
       setPosts(flip);
-      toast.error('Sign in to like essays');
+      toast.error('Sign in to like a piece.');
     }
   };
 
   const toggleBookmark = async (postId, e) => {
-    if (e) {
-      e.preventDefault();
-      e.stopPropagation();
-    }
+    e?.preventDefault();
+    e?.stopPropagation();
     const isCurrentlyBookmarked = bookmarkedPosts.includes(postId);
     setBookmarkedPosts((prev) =>
       isCurrentlyBookmarked ? prev.filter((id) => id !== postId) : [...prev, postId]
@@ -129,16 +135,16 @@ export default function PostsPage() {
       const result = await api.bookmarkPost(postId);
       if (result.bookmarked) {
         setBookmarkedPosts((prev) => (prev.includes(postId) ? prev : [...prev, postId]));
-        toast.success('Saved to your bookmarks 📌');
+        toast.success('Saved to your shelf');
       } else {
         setBookmarkedPosts((prev) => prev.filter((id) => id !== postId));
-        toast.success('Removed from bookmarks');
+        toast.success('Removed from your shelf');
       }
     } catch {
       setBookmarkedPosts((prev) =>
         isCurrentlyBookmarked ? [...prev, postId] : prev.filter((id) => id !== postId)
       );
-      toast.error('Sign in to bookmark essays');
+      toast.error('Sign in to save pieces.');
     }
   };
 
@@ -148,228 +154,214 @@ export default function PostsPage() {
     const url = `${window.location.origin}/posts/${postId}`;
     navigator.clipboard.writeText(url);
     setCopiedId(postId);
-    toast.success('Link copied to clipboard!', { description: `"${title}"` });
+    toast.success('Link copied', { description: title });
     setTimeout(() => setCopiedId(null), 2000);
   };
 
-  const renderCard = (post, tilt = true) => (
-    <EssayCard
-      post={post}
-      tilt={tilt}
-      onLike={handleLike}
-      onBookmark={toggleBookmark}
-      isBookmarked={bookmarkedPosts.includes(post.id)}
-      badge={
-        <button
-          type="button"
-          onClick={(e) => handleShare(post.id, post.title, e)}
-          aria-label="Copy link"
-          className="relative z-10 ml-auto rounded-full p-1.5 text-muted-foreground hover:bg-white/70 hover:text-primary dark:hover:bg-black/20 transition-colors"
-        >
-          {copiedId === post.id ? <Check size={13} className="text-primary" /> : <Share2 size={13} />}
-        </button>
-      }
-    />
-  );
-
   const activeMeta = categoryMeta(selectedCategory);
-  const ActiveIcon = activeMeta.icon;
   const hasFilters = searchQuery || selectedCategory !== 'All' || selectedTags.length > 0;
 
-  return (
-    <>
-      <Header />
-      <main className="min-h-screen bg-canvas pb-24">
-        {/* Board banner */}
-        <section className="mx-auto max-w-7xl px-4 pt-8 sm:px-6 lg:px-8">
-          <motion.div
-            initial={{ opacity: 0, y: 16 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
-            className="relative overflow-hidden rounded-[2rem] border border-border bg-card p-6 shadow-[var(--shadow-note)] sm:p-8"
-          >
-            <div className="pointer-events-none absolute -right-16 -top-16 h-56 w-56 rounded-full bg-accent/10 blur-2xl" />
-            <div className="pointer-events-none absolute -bottom-20 left-10 h-48 w-48 rounded-full bg-primary/10 blur-2xl" />
+  const clearAll = () => {
+    setSearchQuery('');
+    setSelectedCategory('All');
+    setSelectedTags([]);
+  };
 
-            <div className="relative flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
-              <div className="flex items-start gap-4">
-                <motion.div
-                  key={selectedCategory}
-                  initial={{ scale: 0.6, rotate: -20 }}
-                  animate={{ scale: 1, rotate: -6 }}
-                  className="relative grid h-16 w-16 shrink-0 place-items-center"
-                >
-                  <NoteBuddy size="md" />
-                  <span className="absolute -right-1 -top-1 grid h-7 w-7 place-items-center rounded-full border border-border bg-white text-primary shadow-sm">
-                    <ActiveIcon size={13} strokeWidth={2.2} aria-hidden />
+  const headline = useMemo(() => {
+    if (searchQuery) return `Pieces mentioning “${searchQuery}”`;
+    if (selectedCategory !== 'All') return activeMeta.label;
+    return 'Everything we have published';
+  }, [searchQuery, selectedCategory, activeMeta.label]);
+
+  return (
+    <div className="min-h-screen bg-paper">
+      <Header />
+
+      <main id="main" className="pb-24">
+        {/* ── Shelf heading ──────────────────────────────────────────────── */}
+        <section className="border-b border-rule paper-grain">
+          <div className="relative mx-auto max-w-[84rem] px-4 py-12 sm:px-6 lg:px-8 lg:py-16">
+            <div className="flex flex-col gap-8 lg:flex-row lg:items-end lg:justify-between">
+              <div className="max-w-2xl">
+                <div className="mb-4 flex items-center gap-3">
+                  <span
+                    aria-hidden
+                    className="font-reading text-2xl leading-none"
+                    style={{ color: activeMeta.accent }}
+                  >
+                    {activeMeta.mark}
                   </span>
-                </motion.div>
-                <div>
-                  <p className="font-hand text-xl text-accent">ASYV Writing board</p>
-                  <h1 className="font-display text-3xl font-extrabold leading-tight text-foreground sm:text-4xl">
-                    {selectedCategory === 'All' ? 'The Village Wall' : activeMeta.label}
-                  </h1>
-                  <p className="mt-1 text-sm text-muted-foreground">
-                    {loading ? 'Pinning notes…' : `${posts.length} ${posts.length === 1 ? 'note' : 'notes'} from ASYV students`}
-                  </p>
+                  <Kicker>{activeMeta.kicker}</Kicker>
                 </div>
+
+                <h1 className="font-display type-5 font-semibold leading-[1.05] tracking-[-0.02em] text-foreground">
+                  {headline}
+                </h1>
+
+                <p className="mt-4 font-reading type-1 leading-relaxed text-ink-soft">
+                  {loading
+                    ? 'Counting the pages…'
+                    : `${posts.length} ${posts.length === 1 ? 'piece' : 'pieces'}${
+                        selectedCategory === 'All' ? '' : ` in ${activeMeta.label}`
+                      }. ${activeMeta.blurb}`}
+                </p>
               </div>
 
-              <div className="flex w-full flex-col gap-3 sm:flex-row lg:w-auto">
-                <div className="relative flex-1 lg:w-80">
-                  <Search size={17} className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground" />
+              <div className="flex w-full flex-col gap-3 sm:flex-row lg:w-auto lg:items-center">
+                <div className="relative flex-1 lg:w-72">
+                  <Search
+                    size={16}
+                    aria-hidden
+                    className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-faint"
+                  />
+                  <label htmlFor="shelf-search" className="sr-only">
+                    Search the collection
+                  </label>
                   <input
+                    id="shelf-search"
                     ref={searchInputRef}
-                    type="text"
-                    placeholder="Search the wall…"
+                    type="search"
+                    placeholder="Search titles and text…"
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    className="w-full rounded-2xl border-2 border-transparent bg-input py-3 pl-11 pr-16 text-sm font-semibold text-foreground placeholder:text-muted-foreground focus:border-primary/40 focus:bg-card focus:outline-none transition-colors"
+                    className="w-full border border-rule bg-input py-2.5 pl-9 pr-9 text-sm text-foreground focus:border-primary focus:outline-none"
                   />
                   {searchQuery ? (
                     <button
+                      type="button"
                       onClick={() => setSearchQuery('')}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 rounded-full p-1 text-muted-foreground hover:bg-secondary"
-                      aria-label="Clear search"
+                      className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-ink-faint hover:text-foreground"
+                      aria-label="Clear the search"
                     >
-                      <X size={15} />
+                      <X size={14} aria-hidden />
                     </button>
                   ) : (
-                    <kbd className="absolute right-3 top-1/2 hidden -translate-y-1/2 rounded-lg border border-border bg-card px-1.5 py-0.5 text-[10px] font-bold text-muted-foreground sm:block">
+                    <kbd className="pointer-events-none absolute right-2.5 top-1/2 hidden -translate-y-1/2 border border-rule px-1.5 py-0.5 text-[0.625rem] text-ink-faint sm:block">
                       ⌘K
                     </kbd>
                   )}
                 </div>
-                <Link
-                  href="/create"
-                  className="inline-flex items-center justify-center gap-2 rounded-2xl bg-accent px-5 py-3 text-sm font-extrabold text-accent-foreground shadow-[0_10px_24px_-12px_rgba(249,115,22,0.8)] transition-all hover:-translate-y-0.5 hover:scale-105"
-                >
-                  <PenLine size={16} /> Pin a note
-                </Link>
-              </div>
-            </div>
-          </motion.div>
-        </section>
 
-        {/* Toolbar */}
-        <section className="sticky top-[5.5rem] z-30 mx-auto mt-5 max-w-7xl px-4 sm:px-6 lg:px-8">
-          <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-border bg-card/85 p-2 shadow-sm backdrop-blur-md">
-            <div className="flex flex-1 gap-1.5 overflow-x-auto no-scrollbar">
-              {categories.map((cat) => {
-                const CatIcon = categoryMeta(cat).icon;
-                const active = selectedCategory === cat;
-                return (
-                  <motion.button
-                    key={cat}
-                    whileHover={{ y: -2 }}
-                    whileTap={{ scale: 0.95 }}
-                    onClick={() => setSelectedCategory(cat)}
-                    className={cn(
-                      'relative flex shrink-0 items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-extrabold transition-colors',
-                      active ? 'text-primary-foreground' : 'text-foreground/70 hover:bg-secondary hover:text-foreground'
-                    )}
-                  >
-                    {active && (
-                      <motion.span
-                        layoutId="cat-pill"
-                        className="absolute inset-0 rounded-xl bg-primary"
-                        transition={{ type: 'spring', stiffness: 400, damping: 32 }}
-                      />
-                    )}
-                    <CatIcon size={14} strokeWidth={2.5} className="relative" />
-                    <span className="relative">{cat === 'All' ? 'All notes' : cat}</span>
-                  </motion.button>
-                );
-              })}
-            </div>
-
-            <div className="flex items-center gap-1.5">
-              <button
-                onClick={() => setShowTags((s) => !s)}
-                className={cn(
-                  'flex items-center gap-1 rounded-xl px-3 py-2 text-xs font-extrabold transition-colors',
-                  showTags || selectedTags.length ? 'bg-accent/10 text-accent' : 'text-foreground/70 hover:bg-secondary'
-                )}
-              >
-                <Hash size={14} /> Tags{selectedTags.length ? ` · ${selectedTags.length}` : ''}
-              </button>
-
-              <div className="flex rounded-xl bg-secondary p-1">
-                {SORTS.map(({ value, label, icon: Icon }) => (
-                  <button
-                    key={value}
-                    onClick={() => setSortBy(value)}
-                    title={label}
-                    className={cn(
-                      'flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-extrabold transition-all',
-                      sortBy === value ? 'bg-card text-accent shadow-sm' : 'text-muted-foreground hover:text-foreground'
-                    )}
-                  >
-                    <Icon size={13} />
-                    <span className="hidden md:inline">{label}</span>
-                  </button>
-                ))}
-              </div>
-
-              <div className="hidden rounded-xl bg-secondary p-1 md:flex">
-                {[
-                  { value: 'masonry', icon: LayoutGrid, label: 'Masonry wall' },
-                  { value: 'freeform', icon: Move, label: 'Free canvas' },
-                ].map(({ value, icon: Icon, label }) => (
-                  <button
-                    key={value}
-                    onClick={() => changeView(value)}
-                    title={label}
-                    aria-label={label}
-                    className={cn(
-                      'rounded-lg p-1.5 transition-all',
-                      view === value ? 'bg-card text-primary shadow-sm' : 'text-muted-foreground hover:text-foreground'
-                    )}
-                  >
-                    <Icon size={15} />
-                  </button>
-                ))}
+                <InkButton href="/create" variant="solid">
+                  <PenLine size={15} aria-hidden /> Write
+                </InkButton>
               </div>
             </div>
           </div>
+        </section>
 
-          <AnimatePresence initial={false}>
-            {showTags && (
-              <motion.div
-                initial={{ height: 0, opacity: 0 }}
-                animate={{ height: 'auto', opacity: 1 }}
-                exit={{ height: 0, opacity: 0 }}
-                className="overflow-hidden"
-              >
-                <div className="mt-2 flex flex-wrap gap-1.5 rounded-2xl border border-border bg-card/90 p-3 backdrop-blur-md">
-                  {allTags.map((tag) => {
-                    const active = selectedTags.includes(tag);
-                    return (
-                      <button
-                        key={tag}
-                        onClick={() => toggleTag(tag)}
-                        className={cn(
-                          'rounded-full border px-3 py-1 text-xs font-bold transition-all hover:-translate-y-0.5',
-                          active
-                            ? 'border-accent bg-accent text-accent-foreground'
-                            : 'border-border bg-card text-foreground/70 hover:border-accent/50 hover:text-accent'
-                        )}
-                      >
-                        #{tag}
-                      </button>
-                    );
-                  })}
+        {/* ── Genre rail + controls ──────────────────────────────────────── */}
+        <section className="sticky top-[4.5rem] z-30 border-b border-rule bg-paper/95 backdrop-blur-[2px]">
+          <div className="mx-auto max-w-[84rem] px-4 sm:px-6 lg:px-8">
+            <div className="flex items-center gap-4 overflow-x-auto no-scrollbar py-2.5">
+              <nav aria-label="Genres" className="flex shrink-0 items-center gap-5">
+                {categories.map((cat) => {
+                  const active = selectedCategory === cat;
+                  return (
+                    <button
+                      key={cat}
+                      type="button"
+                      onClick={() => setSelectedCategory(cat)}
+                      aria-pressed={active}
+                      className={cn(
+                        'relative whitespace-nowrap py-1.5 text-[0.8125rem] font-medium uppercase tracking-[0.1em] transition-colors',
+                        active ? 'text-foreground' : 'text-ink-faint hover:text-ink-soft'
+                      )}
+                    >
+                      {cat === 'All' ? 'All' : categoryMeta(cat).label}
+                      {active && (
+                        <motion.span
+                          layoutId="shelf-rule"
+                          className="absolute -bottom-0.5 left-0 right-0 h-[2px] bg-accent"
+                          transition={{ type: 'spring', stiffness: 420, damping: 34 }}
+                        />
+                      )}
+                    </button>
+                  );
+                })}
+              </nav>
+
+              <span aria-hidden className="ml-auto hidden h-5 w-px shrink-0 bg-rule sm:block" />
+
+              <div className="flex shrink-0 items-center gap-4">
+                <div className="hidden items-center gap-3 sm:flex">
+                  {SORTS.map((option) => (
+                    <button
+                      key={option.value}
+                      type="button"
+                      onClick={() => setSortBy(option.value)}
+                      aria-pressed={sortBy === option.value}
+                      className={cn(
+                        'text-xs transition-colors',
+                        sortBy === option.value
+                          ? 'font-medium text-foreground underline decoration-accent decoration-2 underline-offset-4'
+                          : 'text-ink-faint hover:text-ink-soft'
+                      )}
+                    >
+                      {option.label}
+                    </button>
+                  ))}
                 </div>
-              </motion.div>
+
+                <div className="flex items-center border border-rule">
+                  {[
+                    { value: 'index', icon: Rows3, label: 'Contents list' },
+                    { value: 'gallery', icon: LayoutGrid, label: 'Gallery' },
+                  ].map(({ value, icon: Icon, label }) => (
+                    <button
+                      key={value}
+                      type="button"
+                      onClick={() => changeView(value)}
+                      aria-label={label}
+                      aria-pressed={view === value}
+                      title={label}
+                      className={cn(
+                        'p-1.5 transition-colors',
+                        view === value ? 'bg-secondary text-foreground' : 'text-ink-faint hover:text-ink-soft'
+                      )}
+                    >
+                      <Icon size={15} aria-hidden />
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Tags that writers have actually used */}
+            {allTags.length > 0 && (
+              <div className="flex items-center gap-3 overflow-x-auto no-scrollbar border-t border-rule py-2">
+                <span className="label shrink-0 text-[0.5625rem]">Tags</span>
+                {allTags.map((tag) => {
+                  const active = selectedTags.includes(tag);
+                  return (
+                    <button
+                      key={tag}
+                      type="button"
+                      onClick={() => toggleTag(tag)}
+                      aria-pressed={active}
+                      className={cn(
+                        'shrink-0 whitespace-nowrap text-xs transition-colors',
+                        active
+                          ? 'font-medium text-accent underline decoration-accent underline-offset-4'
+                          : 'text-ink-faint hover:text-ink-soft'
+                      )}
+                    >
+                      #{tag}
+                    </button>
+                  );
+                })}
+              </div>
             )}
-          </AnimatePresence>
+          </div>
         </section>
 
         {hasFilters && (
-          <div className="mx-auto mt-4 flex max-w-7xl flex-wrap items-center gap-2 px-4 text-xs font-bold sm:px-6 lg:px-8">
-            <span className="text-muted-foreground">Filtering:</span>
+          <div className="mx-auto flex max-w-[84rem] flex-wrap items-center gap-x-3 gap-y-2 px-4 pt-5 text-xs sm:px-6 lg:px-8">
+            <span className="label text-[0.5625rem]">Filtering</span>
             {selectedCategory !== 'All' && (
-              <FilterChip onClear={() => setSelectedCategory('All')}>{selectedCategory}</FilterChip>
+              <FilterChip onClear={() => setSelectedCategory('All')}>
+                {categoryMeta(selectedCategory).label}
+              </FilterChip>
             )}
             {selectedTags.map((t) => (
               <FilterChip key={t} onClear={() => toggleTag(t)}>
@@ -377,75 +369,200 @@ export default function PostsPage() {
               </FilterChip>
             ))}
             {searchQuery && <FilterChip onClear={() => setSearchQuery('')}>“{searchQuery}”</FilterChip>}
-            <button
-              onClick={() => {
-                setSearchQuery('');
-                setSelectedCategory('All');
-                setSelectedTags([]);
-              }}
-              className="text-accent hover:underline"
-            >
+            <button type="button" onClick={clearAll} className="link-quiet text-ink-soft">
               Clear all
             </button>
           </div>
         )}
 
-        {/* Board */}
-        <section className="mx-auto mt-8 max-w-7xl px-4 sm:px-6 lg:px-8">
+        {/* ── The collection ────────────────────────────────────────────── */}
+        <section className="mx-auto mt-10 max-w-[84rem] px-4 sm:px-6 lg:px-8">
           {loading ? (
-            <div className="columns-1 gap-5 sm:columns-2 lg:columns-3 xl:columns-4">
-              {[1, 2, 3, 4, 5, 6, 7, 8].map((n) => (
-                <EssayCardSkeleton key={n} tall={n % 3 === 1} />
-              ))}
-            </div>
+            view === 'index' ? (
+              <ul className="divide-y divide-rule border-y border-rule">
+                {[1, 2, 3, 4, 5].map((n) => (
+                  <li key={n} className="py-6">
+                    <div className="h-3 w-24 skeleton-shimmer" />
+                    <div className="mt-3 h-6 w-2/3 skeleton-shimmer" />
+                    <div className="mt-2 h-4 w-1/2 skeleton-shimmer" />
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+                {[1, 2, 3, 4, 5, 6].map((n) => (
+                  <EssayCardSkeleton key={n} tall={n % 3 === 1} />
+                ))}
+              </div>
+            )
           ) : posts.length === 0 ? (
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              className="mx-auto max-w-md rounded-[2rem] border-2 border-dashed border-border bg-card/80 p-10 text-center"
+            <EmptyNote
+              title={hasFilters ? 'Nothing matches that' : 'This shelf is empty'}
+              action={
+                hasFilters ? (
+                  <InkButton variant="outline" onClick={clearAll}>
+                    Clear the filters
+                  </InkButton>
+                ) : (
+                  <InkButton href="/create" variant="solid">
+                    <PenLine size={15} aria-hidden /> Write the first piece
+                  </InkButton>
+                )
+              }
             >
-              <NoteBuddy size="lg" className="mx-auto mb-2" />
-              <h3 className="mt-4 font-display text-xl font-extrabold text-foreground">No notes here yet</h3>
-              <p className="mt-1 text-sm text-muted-foreground">
-                Try another board or tag — or be the first to pin something!
-              </p>
-              <Link
-                href="/create"
-                className="mt-5 inline-flex items-center gap-2 rounded-2xl bg-accent px-5 py-2.5 text-sm font-extrabold text-accent-foreground transition-transform hover:scale-105"
-              >
-                <PenLine size={16} /> Pin the first note
-              </Link>
-            </motion.div>
-          ) : view === 'freeform' ? (
-            <>
-              <div className="hidden md:block">
-                <FreeformBoard items={posts} renderItem={(post) => renderCard(post, false)} />
-              </div>
-              <div className="md:hidden">
-                <MasonryBoard key={`${selectedCategory}-${sortBy}`}>{posts.map((post) => <div key={post.id}>{renderCard(post)}</div>)}</MasonryBoard>
-              </div>
-            </>
+              {hasFilters
+                ? 'Try a different genre, drop a tag, or search for something shorter.'
+                : 'When a mentor approves a piece in this genre, it will appear here.'}
+            </EmptyNote>
+          ) : view === 'index' ? (
+            <ContentsList
+              posts={posts}
+              reduce={reduce}
+              onLike={handleLike}
+              onBookmark={toggleBookmark}
+              bookmarkedPosts={bookmarkedPosts}
+            />
           ) : (
-            <MasonryBoard key={`${selectedCategory}-${sortBy}-${selectedTags.join()}`}>
+            <motion.div
+              key={`${selectedCategory}-${sortBy}-${selectedTags.join()}`}
+              variants={boardContainer}
+              initial={reduce ? false : 'hidden'}
+              animate="show"
+              className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3"
+            >
               {posts.map((post) => (
-                <div key={post.id}>{renderCard(post)}</div>
+                <EssayCard
+                  key={post.id}
+                  post={post}
+                  onLike={handleLike}
+                  onBookmark={toggleBookmark}
+                  isBookmarked={bookmarkedPosts.includes(post.id)}
+                  badge={
+                    <button
+                      type="button"
+                      onClick={(e) => handleShare(post.id, post.title, e)}
+                      aria-label="Copy a link to this piece"
+                      className="relative z-10 p-1 text-ink-faint transition-colors hover:text-primary"
+                    >
+                      {copiedId === post.id ? (
+                        <Check size={13} className="text-primary" aria-hidden />
+                      ) : (
+                        <Share2 size={13} aria-hidden />
+                      )}
+                    </button>
+                  }
+                />
               ))}
-            </MasonryBoard>
+            </motion.div>
           )}
         </section>
       </main>
+
       <Footer />
-    </>
+    </div>
   );
 }
 
 function FilterChip({ children, onClear }) {
   return (
-    <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2.5 py-1 text-primary">
+    <span className="inline-flex items-center gap-1.5 border border-rule px-2 py-1 text-ink-soft">
       {children}
-      <button onClick={onClear} aria-label="Remove filter" className="rounded-full hover:bg-primary/20">
-        <X size={12} />
+      <button type="button" onClick={onClear} aria-label="Remove this filter" className="hover:text-accent">
+        <X size={11} aria-hidden />
       </button>
     </span>
+  );
+}
+
+/**
+ * The contents list: a dense, scannable index of everything on the shelf,
+ * set the way a magazine prints its table of contents.
+ */
+function ContentsList({ posts, reduce, onLike, onBookmark, bookmarkedPosts }) {
+  return (
+    <motion.ul
+      variants={boardContainer}
+      initial={reduce ? false : 'hidden'}
+      animate="show"
+      className="divide-y divide-rule border-y border-rule"
+    >
+      {posts.map((post, i) => (
+        <motion.li key={post.id} variants={boardItem} className="group relative">
+          <div className="flex gap-4 py-6 sm:gap-7">
+            <span
+              aria-hidden
+              className="hidden w-8 shrink-0 pt-1 font-reading text-sm tabular-nums text-ink-faint sm:block"
+            >
+              {String(i + 1).padStart(2, '0')}
+            </span>
+
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                <GenreTag category={post.category} />
+                <span aria-hidden className="text-ink-faint">·</span>
+                <span className="text-[0.6875rem] text-ink-faint">
+                  {formatShortDate(post.created_at)}
+                  {post.read_time ? ` · ${post.read_time} min` : ''}
+                </span>
+              </div>
+
+              <h2 className="mt-2 font-display type-3 font-semibold leading-tight text-foreground">
+                <Link href={`/posts/${post.id}`} className="after:absolute after:inset-0 after:content-['']">
+                  <span className="ink-underline">{post.title}</span>
+                </Link>
+              </h2>
+
+              <p className="mt-2 max-w-2xl font-reading text-[0.9375rem] leading-relaxed text-ink-soft line-clamp-2">
+                {post.excerpt?.trim() || openingLine(post.content || '')}
+              </p>
+
+              {post.author?.name && (
+                <Link
+                  href={`/author/${post.author.id}`}
+                  className="link-quiet relative z-10 mt-2.5 inline-block text-[0.8125rem] font-medium text-foreground"
+                >
+                  {post.author.name}
+                </Link>
+              )}
+            </div>
+
+            <div className="relative z-10 flex shrink-0 flex-col items-end gap-2">
+              <button
+                type="button"
+                onClick={(e) => onLike(post.id, e)}
+                aria-label={post.liked ? 'Remove your like' : 'Like this piece'}
+                aria-pressed={Boolean(post.liked)}
+                className={cn(
+                  'inline-flex items-center gap-1 px-1.5 py-1 text-xs transition-colors',
+                  post.liked ? 'text-accent' : 'text-ink-faint hover:text-accent'
+                )}
+              >
+                <Heart size={14} aria-hidden className={post.liked ? 'fill-current' : ''} />
+                <span className="tabular-nums">{post.likes ?? 0}</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={(e) => onBookmark(post.id, e)}
+                aria-label={bookmarkedPosts.includes(post.id) ? 'Remove from your shelf' : 'Save to your shelf'}
+                aria-pressed={bookmarkedPosts.includes(post.id)}
+                className={cn(
+                  'p-1.5 transition-colors',
+                  bookmarkedPosts.includes(post.id)
+                    ? 'text-primary'
+                    : 'text-ink-faint hover:text-primary'
+                )}
+              >
+                <Bookmark
+                  size={14}
+                  aria-hidden
+                  className={bookmarkedPosts.includes(post.id) ? 'fill-current' : ''}
+                />
+              </button>
+            </div>
+          </div>
+        </motion.li>
+      ))}
+    </motion.ul>
   );
 }

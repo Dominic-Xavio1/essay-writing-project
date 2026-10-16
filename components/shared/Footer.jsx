@@ -1,51 +1,76 @@
 'use client';
 
 import Link from 'next/link';
-import Image from 'next/image';
-import { Compass, PenLine, LayoutDashboard, Heart } from 'lucide-react';
+import { categories } from '@/lib/posts';
+import { categoryMeta } from '@/lib/board';
+import { cn } from '@/lib/utils';
 
-const links = [
-  { href: '/posts', label: 'Explore the wall', icon: Compass },
-  { href: '/create', label: 'Pin a note', icon: PenLine },
-  { href: '/dashboard', label: 'My board', icon: LayoutDashboard },
-];
+/**
+ * The colophon — who made this, what is in it, and where to go next.
+ * Set like the back page of a magazine.
+ */
+export function Footer({ water = false }) {
+  const year = new Date().getFullYear();
 
-export function Footer() {
   return (
-    <footer className="border-t border-border bg-white">
-      <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
-        <div className="flex flex-col gap-8 md:flex-row md:items-start md:justify-between">
+    <footer className={cn('border-t border-rule bg-paper', water && 'bg-card')}>
+      <div className="mx-auto max-w-[84rem] px-4 py-14 sm:px-6 lg:px-8">
+        <div className="grid gap-10 md:grid-cols-[1.4fr_1fr_1fr]">
           <div className="max-w-sm">
-            <Link href="/" className="flex items-center gap-3">
-              <Image src="/agahozo.png" alt="ASYV" width={40} height={40} className="rounded-xl" />
-              <span className="font-display text-xl font-extrabold text-foreground">
-                ASYV Writing
-              </span>
+            <Link href="/" className="font-display text-xl font-semibold tracking-tight text-foreground">
+              ASYV&nbsp;<span className="italic text-primary">Writers</span>
             </Link>
-            <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
-              The creative wall of Agahozo-Shalom Youth Village — where students pin essays, poems and ideas, and lift
-              each other up.
+            <p className="mt-3 font-reading text-[0.9375rem] leading-relaxed text-ink-soft">
+              A quiet creative world where young minds find their voice. Stories, essays, articles and
+              research by the students of Agahozo-Shalom Youth Village, Rwanda.
+            </p>
+            <p className="mt-5 font-reading text-sm italic text-ink-faint">
+              Every piece here is read by a mentor before it is published.
             </p>
           </div>
 
-          <nav aria-label="Footer navigation" className="flex flex-wrap gap-x-6 gap-y-3">
-            {links.map(({ href, label, icon: Icon }) => (
-              <Link
-                key={href}
-                href={href}
-                className="inline-flex items-center gap-2 py-1 text-sm font-semibold text-muted-foreground transition-colors hover:text-primary"
-              >
-                <Icon size={16} /> {label}
-              </Link>
-            ))}
+          <nav aria-label="Genres">
+            <p className="label mb-4">Genres</p>
+            <ul className="space-y-2.5">
+              {categories
+                .filter((c) => c !== 'All')
+                .map((cat) => (
+                  <li key={cat}>
+                    <Link
+                      href={`/posts?category=${encodeURIComponent(cat)}`}
+                      className="link-quiet text-sm text-ink-soft hover:text-foreground"
+                    >
+                      {categoryMeta(cat).label}
+                    </Link>
+                  </li>
+                ))}
+            </ul>
+          </nav>
+
+          <nav aria-label="Elsewhere">
+            <p className="label mb-4">Elsewhere</p>
+            <ul className="space-y-2.5">
+              {[
+                { href: '/posts', label: 'Read everything' },
+                { href: '/create', label: 'Start writing' },
+                { href: '/dashboard', label: 'My desk' },
+              ].map((link) => (
+                <li key={link.href}>
+                  <Link
+                    href={link.href}
+                    className="link-quiet text-sm text-ink-soft hover:text-foreground"
+                  >
+                    {link.label}
+                  </Link>
+                </li>
+              ))}
+            </ul>
           </nav>
         </div>
 
-        <div className="mt-8 flex flex-col items-center justify-between gap-3 border-t border-border pt-5 text-xs font-medium text-muted-foreground sm:flex-row">
-          <p>© {new Date().getFullYear()} ASYV Writing · Agahozo-Shalom Youth Village, Rwanda</p>
-          <p className="inline-flex items-center gap-1.5">
-            Made with <Heart size={13} className="text-primary" /> by ASYV students
-          </p>
+        <div className="mt-12 flex flex-col gap-2 border-t border-rule pt-6 text-xs text-ink-faint sm:flex-row sm:items-center sm:justify-between">
+          <p>© {year} ASYV Writers · Agahozo-Shalom Youth Village, Rwanda</p>
+          <p className="font-reading italic">Set in Fraunces, Newsreader and Inter.</p>
         </div>
       </div>
     </footer>

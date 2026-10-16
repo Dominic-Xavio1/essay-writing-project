@@ -2,11 +2,27 @@
 
 import Link from 'next/link';
 import { motion } from 'framer-motion';
-import { Heart, MessageCircle, Bookmark, Clock } from 'lucide-react';
-import { UserAvatar } from '@/components/ui/UserAvatar';
-import { boardItem, noteStyleFor, noteTiltFor, categoryMeta, formatShortDate } from '@/lib/board';
+import { Heart, MessageCircle, Bookmark } from 'lucide-react';
+import { PostCover } from '@/components/editorial/GenreCover';
+import { GenreTag } from '@/components/editorial/Bits';
+import { boardItem, cardVariantFor, categoryMeta, formatShortDate } from '@/lib/board';
+import { openingLine } from '@/lib/essay';
 import { cn } from '@/lib/utils';
 
+/**
+ * One piece of writing, as it appears in a list.
+ *
+ * Four treatments are picked from the post's id so that a page reads like a
+ * spread rather than a grid of identical boxes:
+ *
+ *   plain     a cover above the title
+ *   ruled     no cover; a genre rule and a larger title
+ *   quoted    the summary set as a pull quote
+ *   numbered  the genre mark set large, like a plate number
+ *
+ * The public props are unchanged from the previous card, so every caller —
+ * the dashboard, the explore page, the homepage — keeps working.
+ */
 export function EssayCard({
   post,
   onLike,
@@ -14,146 +30,174 @@ export function EssayCard({
   isBookmarked = false,
   actions,
   badge,
-  tilt = true,
-  monochrome = false,
+  variant,
+  // Kept for callers that still pass them; this design does not tilt paper
+  // and does not tint cards, so they no longer change anything.
+  tilt,
+  monochrome,
   className = '',
 }) {
-  const style = noteStyleFor(post.id);
-  const cardStyle = monochrome
-    ? { bg: 'bg-white', tape: 'bg-primary/20', chip: 'bg-primary/5 text-primary' }
-    : style;
-  const rotate = tilt ? noteTiltFor(post.id) : 0;
-  const CategoryIcon = categoryMeta(post.category).icon;
+  const meta = categoryMeta(post.category);
+  const treatment = variant || cardVariantFor(post.id);
+  const summary = post.excerpt?.trim() || openingLine(post.content || '');
+  const showCover = Boolean(post.featured_image) || treatment === 'plain';
   const tags = post.tags || [];
+
+  const titleSize =
+    treatment === 'ruled' || treatment === 'quoted' ? 'type-3' : 'type-2';
+
+  const titleFont =
+    meta.titleFont === 'reading'
+      ? 'font-reading'
+      : meta.titleFont === 'sans'
+      ? 'font-sans tracking-tight'
+      : 'font-display';
 
   return (
     <motion.article
       variants={boardItem}
-      style={{ rotate }}
-      whileHover={{ y: -6, scale: 1.03, rotate: 0 }}
-      whileTap={{ scale: 0.99 }}
-      transition={{ type: 'spring', stiffness: 300, damping: 22 }}
       className={cn(
-        'group relative rounded-3xl border border-black/5 dark:border-white/5 p-4 sm:p-5',
-        'shadow-[var(--shadow-note)] hover:shadow-[var(--shadow-float)] transition-shadow duration-300',
-        cardStyle.bg,
+        'group relative flex h-full flex-col border border-rule bg-card lift',
         className
       )}
     >
-      <span aria-hidden className={cn('tape', cardStyle.tape)} />
+      {/* The genre's own rule, along the top edge */}
+      <span
+        aria-hidden
+        className={cn(
+          'absolute inset-x-0 top-0 h-0 border-t',
+          meta.rule === 'dotted' && 'border-dotted border-t-2',
+          meta.rule === 'dashed' && 'border-dashed border-t-2',
+          meta.rule === 'double' && 'border-double border-t-[3px]',
+          meta.rule === 'bracket' && 'left-0 right-auto w-10 border-t-2',
+          meta.rule === 'solid' && 'border-t-2'
+        )}
+        style={{ borderColor: meta.accent, opacity: 0.55 }}
+      />
 
-      {post.featured_image && (
-        <div className="relative mb-4 overflow-hidden rounded-2xl bg-secondary aspect-[4/3]">
-          <img
-            src={post.featured_image}
-            alt=""
-            className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
-            loading="lazy"
-          />
-        </div>
-      )}
-
-      <div className="mb-3 flex flex-wrap items-center gap-2">
-        <span className={cn('inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-extrabold', cardStyle.chip)}>
-          <CategoryIcon size={12} strokeWidth={2.75} aria-hidden />
-          {post.category}
-        </span>
-        {post.read_time ? (
-          <span className="inline-flex items-center gap-1 rounded-full bg-white/70 dark:bg-black/20 px-2 py-1 text-[11px] font-bold text-muted-foreground">
-            <Clock size={11} /> {post.read_time} min
-          </span>
-        ) : null}
-        {badge}
-      </div>
-
-      <h3 className="font-display text-lg sm:text-xl font-extrabold leading-snug text-foreground mb-1.5">
+      {showCover && (
         <Link
           href={`/posts/${post.id}`}
-          className="outline-none after:absolute after:inset-0 after:rounded-3xl after:content-[''] focus-visible:underline"
+          tabIndex={-1}
+          aria-hidden="true"
+          className="block overflow-hidden border-b border-rule"
         >
-          {post.title || 'Untitled'}
+          <PostCover post={post} ratio={treatment === 'plain' ? '16 / 10' : '4 / 3'} showLabel={false} />
         </Link>
-      </h3>
-
-      {post.excerpt && (
-        <p className="text-sm leading-relaxed text-foreground/70 line-clamp-3 mb-3">{post.excerpt}</p>
       )}
 
-      {tags.length > 0 && (
-        <div className="mb-4 flex flex-wrap gap-1.5">
-          {tags.slice(0, 3).map((tag) => (
-            <span
-              key={tag}
-              className="rounded-full border border-primary/25 bg-white/60 dark:bg-black/20 px-2 py-0.5 text-[11px] font-bold text-primary"
-            >
-              #{tag}
-            </span>
-          ))}
+      <div className="flex flex-1 flex-col p-5">
+        <div className="mb-3 flex items-start justify-between gap-3">
+          <GenreTag category={post.category} />
+          {badge}
         </div>
-      )}
 
-      <div className="flex items-center justify-between gap-2 border-t border-black/5 dark:border-white/10 pt-3">
-        {post.author ? (
-          <Link
-            href={`/author/${post.author.id}`}
-            className="relative z-10 flex min-w-0 items-center gap-2 rounded-full pr-2 hover:bg-white/60 dark:hover:bg-black/20 transition-colors"
+        {treatment === 'numbered' && (
+          <span
+            aria-hidden
+            className="mb-1 font-reading text-3xl leading-none"
+            style={{ color: meta.accent, opacity: 0.4 }}
           >
-            <UserAvatar src={post.author.avatar} name={post.author.name} size="xs" />
-            <span className="truncate text-xs font-extrabold text-foreground">{post.author.name}</span>
-            {post.created_at && (
-              <span className="hidden shrink-0 whitespace-nowrap text-[11px] font-semibold text-muted-foreground 2xl:inline">
-                · {formatShortDate(post.created_at)}
-              </span>
-            )}
-          </Link>
-        ) : (
-          <span />
+            {meta.mark}
+          </span>
         )}
 
-        <div className="relative z-10 flex items-center gap-1">
-          {actions ?? (
-            <>
-              <motion.button
-                type="button"
-                whileTap={{ scale: 0.8 }}
-                onClick={(e) => onLike?.(post.id, e)}
-                aria-label={post.liked ? 'Unlike' : 'Like'}
-                className={cn(
-                  'flex items-center gap-1 rounded-full px-2 py-1 text-xs font-extrabold transition-colors',
-                  post.liked
-                    ? monochrome ? 'text-primary bg-primary/10' : 'text-rose-500 bg-rose-500/10'
-                    : `text-muted-foreground ${monochrome ? 'hover:text-primary hover:bg-primary/5' : 'hover:text-rose-500 hover:bg-white/70 dark:hover:bg-black/20'}`
-                )}
-              >
-                <Heart size={14} className={post.liked ? 'fill-rose-500' : ''} />
-                {post.likes ?? 0}
-              </motion.button>
+        <h3 className={cn('font-semibold leading-tight text-foreground', titleFont, titleSize)}>
+          <Link
+            href={`/posts/${post.id}`}
+            className="after:absolute after:inset-0 after:content-['']"
+          >
+            <span className="ink-underline">{post.title || 'Untitled'}</span>
+          </Link>
+        </h3>
+
+        {summary && (
+          <p
+            className={cn(
+              'mt-3 text-ink-soft',
+              treatment === 'quoted'
+                ? 'border-l-2 pl-3 font-reading type-1 italic leading-relaxed line-clamp-4'
+                : 'font-reading text-[0.9375rem] leading-relaxed line-clamp-3'
+            )}
+            style={treatment === 'quoted' ? { borderColor: meta.accent } : undefined}
+          >
+            {summary}
+          </p>
+        )}
+
+        {tags.length > 0 && treatment !== 'quoted' && (
+          <ul className="mt-4 flex flex-wrap gap-x-3 gap-y-1">
+            {tags.slice(0, 3).map((tag) => (
+              <li key={tag} className="text-[0.6875rem] tracking-wide text-ink-faint">
+                #{tag}
+              </li>
+            ))}
+          </ul>
+        )}
+
+        <div className="mt-auto pt-5">
+        <div className="flex items-end justify-between gap-3 border-t border-rule pt-4">
+          <div className="min-w-0">
+            {post.author?.name && (
               <Link
-                href={`/posts/${post.id}#comments`}
-                className="flex items-center gap-1 rounded-full px-2 py-1 text-xs font-extrabold text-muted-foreground hover:text-primary hover:bg-white/70 dark:hover:bg-black/20 transition-colors"
-                aria-label="Comments"
+                href={`/author/${post.author.id}`}
+                className="link-quiet relative z-10 block truncate text-[0.8125rem] font-medium text-foreground"
               >
-                <MessageCircle size={14} />
-                {post.comments ?? 0}
+                {post.author.name}
               </Link>
-              {onBookmark && (
+            )}
+            <p className="mt-0.5 text-[0.6875rem] text-ink-faint">
+              {post.created_at && formatShortDate(post.created_at)}
+              {post.read_time ? ` · ${post.read_time} min` : ''}
+            </p>
+          </div>
+
+          <div className="relative z-10 flex shrink-0 items-center gap-1">
+            {actions ?? (
+              <>
                 <motion.button
                   type="button"
-                  whileTap={{ scale: 0.8 }}
-                  onClick={(e) => onBookmark(post.id, e)}
-                  aria-label={isBookmarked ? 'Remove bookmark' : 'Save'}
+                  whileTap={{ scale: 0.88 }}
+                  onClick={(e) => onLike?.(post.id, e)}
+                  aria-label={post.liked ? 'Remove your like' : 'Like this piece'}
+                  aria-pressed={Boolean(post.liked)}
                   className={cn(
-                    'rounded-full p-1.5 transition-colors',
-                    isBookmarked
-                      ? 'text-primary bg-primary/10'
-                      : `text-muted-foreground ${monochrome ? 'hover:text-primary hover:bg-primary/5' : 'hover:text-accent hover:bg-white/70 dark:hover:bg-black/20'}`
+                    'inline-flex items-center gap-1 px-1.5 py-1 text-xs transition-colors',
+                    post.liked ? 'text-accent' : 'text-ink-faint hover:text-accent'
                   )}
                 >
-                  <Bookmark size={14} className={isBookmarked ? 'fill-accent' : ''} />
+                  <Heart size={14} className={post.liked ? 'fill-current' : ''} aria-hidden />
+                  {post.likes ?? 0}
                 </motion.button>
-              )}
-            </>
-          )}
+
+                <Link
+                  href={`/posts/${post.id}#responses`}
+                  className="inline-flex items-center gap-1 px-1.5 py-1 text-xs text-ink-faint transition-colors hover:text-primary"
+                  aria-label={`${post.comments ?? 0} responses`}
+                >
+                  <MessageCircle size={14} aria-hidden />
+                  {post.comments ?? 0}
+                </Link>
+
+                {onBookmark && (
+                  <motion.button
+                    type="button"
+                    whileTap={{ scale: 0.88 }}
+                    onClick={(e) => onBookmark(post.id, e)}
+                    aria-label={isBookmarked ? 'Remove from your shelf' : 'Save to your shelf'}
+                    aria-pressed={isBookmarked}
+                    className={cn(
+                      'p-1.5 transition-colors',
+                      isBookmarked ? 'text-primary' : 'text-ink-faint hover:text-primary'
+                    )}
+                  >
+                    <Bookmark size={14} className={isBookmarked ? 'fill-current' : ''} aria-hidden />
+                  </motion.button>
+                )}
+              </>
+            )}
+          </div>
+        </div>
         </div>
       </div>
     </motion.article>
@@ -162,12 +206,13 @@ export function EssayCard({
 
 export function EssayCardSkeleton({ tall = false }) {
   return (
-    <div className="mb-5 break-inside-avoid rounded-3xl border border-border bg-card p-5 space-y-3">
-      {tall && <div className="aspect-[4/3] rounded-2xl skeleton-shimmer" />}
-      <div className="h-5 w-24 rounded-full skeleton-shimmer" />
-      <div className="h-6 w-4/5 rounded-lg skeleton-shimmer" />
-      <div className="h-4 w-full rounded-lg skeleton-shimmer" />
-      <div className="h-4 w-2/3 rounded-lg skeleton-shimmer" />
+    <div className="border border-rule bg-card p-5">
+      {tall && <div className="mb-4 aspect-[4/3] skeleton-shimmer" />}
+      <div className="h-3 w-24 skeleton-shimmer" />
+      <div className="mt-3 h-5 w-4/5 skeleton-shimmer" />
+      <div className="mt-2.5 h-4 w-full skeleton-shimmer" />
+      <div className="mt-1.5 h-4 w-2/3 skeleton-shimmer" />
+      <div className="mt-5 h-3 w-28 skeleton-shimmer" />
     </div>
   );
 }

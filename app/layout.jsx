@@ -1,4 +1,4 @@
-import { Nunito, Bricolage_Grotesque, Caveat } from 'next/font/google'
+import { Inter, Fraunces, Newsreader } from 'next/font/google'
 import { Analytics } from '@vercel/analytics/next'
 import { Toaster } from '@/components/ui/sonner'
 import './globals.css'
@@ -12,14 +12,36 @@ if (typeof window === 'undefined') {
   });
 }
 
-const bodyFont = Nunito({ subsets: ['latin'], variable: '--font-body', display: 'swap' });
-const headingFont = Bricolage_Grotesque({ subsets: ['latin'], variable: '--font-heading', display: 'swap' });
-const handFont = Caveat({ subsets: ['latin'], variable: '--font-handwritten', display: 'swap' });
+/* Three families, latin only, swapped in — an expressive serif for headlines,
+   a screen-reading serif for essays, and a quiet sans for the interface. */
+const uiFont = Inter({
+  subsets: ['latin'],
+  weight: ['400', '500', '600'],
+  variable: '--font-ui',
+  display: 'swap',
+});
+
+const displayFont = Fraunces({
+  subsets: ['latin'],
+  weight: ['400', '500', '600', '700'],
+  style: ['normal', 'italic'],
+  variable: '--font-display',
+  display: 'swap',
+});
+
+const readingFont = Newsreader({
+  subsets: ['latin'],
+  weight: ['400', '500', '600'],
+  style: ['normal', 'italic'],
+  variable: '--font-reading',
+  display: 'swap',
+});
 
 export const metadata = {
-  title: 'ASYV Writing',
-  description: 'ASYV Writing is the creative wall of Agahozo-Shalom Youth Village: where students pin their essays, stories and ideas.',
-  generator:'Dominique Savio',
+  title: 'ASYV Writers',
+  description:
+    'A quiet creative world where young minds find their voice — stories, essays, articles and research by the students of Agahozo-Shalom Youth Village.',
+  generator: 'Dominique Savio',
   icons: {
     icon: [
       {
@@ -43,8 +65,17 @@ export const metadata = {
 
 export default function RootLayout({ children }) {
   return (
-    <html lang="en" className={`${bodyFont.variable} ${headingFont.variable} ${handFont.variable}`}>
+    <html
+      lang="en"
+      className={`${uiFont.variable} ${displayFont.variable} ${readingFont.variable}`}
+    >
       <body className="font-sans antialiased">
+        <a
+          href="#main"
+          className="sr-only-focusable absolute left-4 top-4 z-[100] bg-primary px-4 py-2 text-sm font-medium text-primary-foreground"
+        >
+          Skip to content
+        </a>
         {children}
         <Toaster />
         {process.env.NODE_ENV === 'production' && <Analytics />}

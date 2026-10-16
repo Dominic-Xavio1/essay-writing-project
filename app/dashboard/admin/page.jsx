@@ -3,19 +3,35 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
+import { toast } from 'sonner';
+import {
+  ShieldCheck,
+  CheckCircle2,
+  XCircle,
+  Eye,
+  ArrowLeft,
+  MessageSquare,
+  Send,
+} from 'lucide-react';
 import { Header } from '@/components/shared/Header';
 import { Footer } from '@/components/shared/Footer';
+import { Kicker, GenreTag, EmptyNote, InkButton, LoadingLine } from '@/components/editorial/Bits';
 import { api } from '@/lib/api-client';
-import { Button } from '@/components/ui/customButton';
-import { ShieldCheck, CheckCircle2, XCircle, Clock, Eye, ArrowLeft, AlertCircle } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { toast } from 'sonner';
-
 import { wsClient } from '@/lib/websocket';
-import { MessageSquare, Send } from 'lucide-react';
+import { formatLongDate } from '@/lib/board';
+import { plainText } from '@/lib/essay';
+import { cn } from '@/lib/utils';
+
+const FILTERS = [
+  { id: 'pending', label: 'Waiting' },
+  { id: 'approved', label: 'Published' },
+  { id: 'rejected', label: 'Not approved' },
+];
 
 export default function SuperuserDashboardPage() {
   const router = useRouter();
+  const reduce = useReducedMotion();
   const [user, setUser] = useState(null);
   const [posts, setPosts] = useState([]);
   const [statusFilter, setStatusFilter] = useState('pending');
@@ -25,24 +41,22 @@ export default function SuperuserDashboardPage() {
   const [activeFeedbackId, setActiveFeedbackId] = useState(null);
 
   useEffect(() => {
-    api.getMe()
+    api
+      .getMe()
       .then((res) => {
         if (!res.user?.isSuperuser) {
-          toast.error('Superuser access required');
+          toast.error('That area is for ASYV mentors.');
           router.push('/dashboard');
           return;
         }
         setUser(res.user);
         loadPosts('pending');
-
-        // Connect WebSocket for real-time streaming of new pending submissions
         wsClient.connect(res.user.id);
       })
       .catch(() => router.push('/auth/login'));
 
-    // Real-time listener for new pending posts submitted by authors
     const unsubscribeNew = wsClient.subscribe('NEW_PENDING_POST', (data) => {
-      toast.info(`🔔 New essay submitted: "${data.postTitle}"`);
+      toast.info(`New submission: “${data.postTitle}”`);
       if (data.post) {
         setPosts((prev) => [data.post, ...prev.filter((p) => p.id !== data.post.id)]);
       } else {
@@ -51,9 +65,7 @@ export default function SuperuserDashboardPage() {
     });
 
     const unsubscribeMod = wsClient.subscribe('POST_MODERATED', (data) => {
-      if (data.postId) {
-        setPosts((prev) => prev.filter((p) => p.id !== data.postId));
-      }
+      if (data.postId) setPosts((prev) => prev.filter((p) => p.id !== data.postId));
     });
 
     return () => {
@@ -70,7 +82,7 @@ export default function SuperuserDashboardPage() {
         if (data.error) throw new Error(data.error);
         setPosts(data.posts || []);
       })
-      .catch((err) => toast.error(err.message || 'Failed to load posts'))
+      .catch((err) => toast.error(err.message || 'Could not load the submissions'))
       .finally(() => setLoading(false));
   };
 
@@ -89,22 +101,22 @@ export default function SuperuserDashboardPage() {
         body: JSON.stringify({ status, feedback }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Action failed');
+      if (!res.ok) throw new Error(data.error || 'That did not go through');
 
       setPosts((prev) => prev.filter((p) => p.id !== postId));
-      
+
       if (status === 'approved') {
-        toast.success('Post approved & published to Explore!');
+        toast.success('Published. It is now on the public shelves.');
       } else if (status === 'rejected' && feedback) {
-        toast.success('Feedback sent & post returned for revision!');
+        toast.success('Sent back to the writer with your note.');
       } else {
-        toast.success('Post rejected');
+        toast.success('Marked as not approved.');
       }
-      
+
       setFeedbackInput((prev) => ({ ...prev, [postId]: '' }));
       setActiveFeedbackId(null);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Moderation failed');
+      toast.error(err instanceof Error ? err.message : 'That did not go through');
     } finally {
       setActioningId(null);
     }
@@ -114,218 +126,250 @@ export default function SuperuserDashboardPage() {
     return (
       <>
         <Header />
-        <main className="min-h-screen bg-background flex flex-col items-center justify-center py-20">
-          <div className="w-10 h-10 border-3 border-primary border-t-transparent rounded-full animate-spin mb-4" />
-          <p className="text-muted-foreground text-sm font-medium">Verifying superuser permissions...</p>
+        <main id="main" className="min-h-screen bg-paper">
+          <LoadingLine>Checking you are a mentor…</LoadingLine>
         </main>
       </>
     );
   }
 
   return (
-    <>
+    <div className="min-h-screen bg-paper">
       <Header />
-      <main className="min-h-screen bg-background pb-20">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
-          <div className="mb-8">
+
+      <main id="main" className="pb-24">
+        <section className="border-b border-rule paper-grain">
+          <div className="relative mx-auto max-w-[72rem] px-4 py-12 sm:px-6 lg:px-8">
             <Link
               href="/dashboard"
-              className="inline-flex items-center gap-1.5 text-xs font-semibold text-muted-foreground hover:text-foreground mb-3 transition-colors"
+              className="link-quiet inline-flex items-center gap-1.5 text-xs font-medium text-ink-soft"
             >
-              <ArrowLeft size={14} /> Back to Dashboard
+              <ArrowLeft size={13} aria-hidden /> My desk
             </Link>
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+
+            <div className="mt-5 flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
               <div>
-                <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-amber-500/10 border border-amber-500/20 text-amber-700 dark:text-amber-400 rounded-full text-xs font-semibold uppercase tracking-wider mb-2">
-                  <ShieldCheck size={14} /> Superuser Moderation Studio
-                </div>
-                <h1 className="font-serif text-3xl sm:text-4xl font-extrabold text-foreground tracking-tight">
-                  Post Review & Approval
+                <Kicker className="mb-2 flex items-center gap-1.5 text-accent">
+                  <ShieldCheck size={13} aria-hidden /> Mentor review
+                </Kicker>
+                <h1 className="font-display type-4 font-semibold leading-tight text-foreground">
+                  Reading what students sent in
                 </h1>
-                <p className="text-muted-foreground text-sm mt-1">
-                  Review submitted essays, approve quality content for Explore, or reject inappropriate posts.
+                <p className="mt-3 max-w-xl font-reading type-1 leading-relaxed text-ink-soft">
+                  Nothing a student writes is public until you publish it here. You can also send a
+                  piece back with a note, and it returns to their drafts to work on.
                 </p>
               </div>
 
-              {/* Status Filter Buttons */}
-              <div className="flex items-center gap-1.5 bg-secondary p-1 rounded-xl">
-                {[
-                  { id: 'pending', label: 'Pending Review' },
-                  { id: 'approved', label: 'Approved' },
-                  { id: 'rejected', label: 'Rejected' },
-                ].map((item) => (
+              <nav aria-label="Submission status" className="flex items-center gap-5">
+                {FILTERS.map((item) => (
                   <button
                     key={item.id}
+                    type="button"
                     onClick={() => handleFilterChange(item.id)}
-                    className={`px-3.5 py-1.5 rounded-lg text-xs font-bold capitalize transition-all ${
+                    aria-pressed={statusFilter === item.id}
+                    className={cn(
+                      'whitespace-nowrap pb-1 text-[0.8125rem] font-medium uppercase tracking-[0.1em] transition-colors',
                       statusFilter === item.id
-                        ? 'bg-card text-foreground shadow-xs'
-                        : 'text-muted-foreground hover:text-foreground'
-                    }`}
+                        ? 'border-b-2 border-accent text-foreground'
+                        : 'text-ink-faint hover:text-ink-soft'
+                    )}
                   >
                     {item.label}
                   </button>
                 ))}
-              </div>
+              </nav>
             </div>
           </div>
+        </section>
 
+        <div className="mx-auto max-w-[72rem] px-4 pt-10 sm:px-6 lg:px-8">
           {loading ? (
-            <div className="space-y-4">
+            <ul className="divide-y divide-rule border-y border-rule">
               {[1, 2, 3].map((n) => (
-                <div key={n} className="bg-card border border-border p-6 rounded-2xl space-y-3 skeleton-shimmer">
-                  <div className="h-4 bg-muted/60 rounded-md w-1/4" />
-                  <div className="h-6 bg-muted/80 rounded-md w-3/4" />
-                  <div className="h-4 bg-muted/50 rounded-md w-1/2" />
-                </div>
+                <li key={n} className="py-8">
+                  <div className="h-3 w-32 skeleton-shimmer" />
+                  <div className="mt-3 h-6 w-2/3 skeleton-shimmer" />
+                  <div className="mt-3 h-4 w-full skeleton-shimmer" />
+                </li>
               ))}
-            </div>
+            </ul>
           ) : posts.length === 0 ? (
-            <div className="text-center py-16 px-6 bg-card border border-border rounded-2xl max-w-md mx-auto">
-              <div className="w-12 h-12 rounded-full bg-secondary text-emerald-600 flex items-center justify-center mx-auto mb-3 text-xl">
-                ✅
-              </div>
-              <h3 className="font-serif text-xl font-bold mb-1 text-foreground">
-                No {statusFilter} posts
-              </h3>
-              <p className="text-muted-foreground text-xs leading-relaxed">
-                {statusFilter === 'pending'
-                  ? 'All submitted essays have been reviewed! Check back later for new submissions.'
-                  : `There are currently no posts with status "${statusFilter}".`}
-              </p>
-            </div>
+            <EmptyNote
+              mark="✓"
+              title={
+                statusFilter === 'pending'
+                  ? 'Nothing is waiting'
+                  : `No ${statusFilter === 'approved' ? 'published' : 'declined'} pieces`
+              }
+            >
+              {statusFilter === 'pending'
+                ? 'Every submission has been read. New ones appear here the moment a student sends them.'
+                : 'Switch to another status to see other submissions.'}
+            </EmptyNote>
           ) : (
-            <div className="space-y-6">
-              <AnimatePresence>
-                {posts.map((post) => (
-                  <motion.article
-                    key={post.id}
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, scale: 0.98 }}
-                    className="bg-card border border-border/80 rounded-2xl p-6 sm:p-7 shadow-xs hover:border-primary/40 transition-all"
-                  >
-                    <div className="flex flex-col md:flex-row gap-6 justify-between items-start md:items-center mb-4">
-                      <div className="flex items-center gap-3">
-                        <img
-                          src={post.author?.avatar || '/placeholder-user.jpg'}
-                          alt={post.author?.name || 'Author'}
-                          className="w-10 h-10 rounded-full object-cover ring-2 ring-primary/10"
-                        />
-                        <div>
-                          <p className="font-bold text-sm text-foreground">{post.author?.name}</p>
-                          <p className="text-xs text-muted-foreground flex items-center gap-1">
-                            <Clock size={12} /> Submitted {new Date(post.created_at).toLocaleDateString()} • Category: <span className="font-semibold text-foreground">{post.category}</span>
-                          </p>
-                        </div>
-                      </div>
+            <ul className="divide-y divide-rule border-y border-rule">
+              <AnimatePresence initial={false}>
+                {posts.map((post) => {
+                  const preview = post.excerpt?.trim() || plainText(post.content || '').slice(0, 320);
+                  const busy = actioningId === post.id;
 
-                      <div className="flex items-center gap-2">
+                  return (
+                    <motion.li
+                      key={post.id}
+                      initial={reduce ? false : { opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      exit={{ opacity: 0, height: 0 }}
+                      className="py-8"
+                    >
+                      <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+                        <GenreTag category={post.category} />
+                        <span aria-hidden className="text-ink-faint">·</span>
+                        <span className="text-xs text-ink-faint">
+                          Sent {formatLongDate(post.created_at)}
+                        </span>
                         <span
-                          className={`text-xs font-bold px-3 py-1 rounded-full uppercase tracking-wider ${
-                            post.status === 'pending'
-                              ? 'bg-amber-500/10 text-amber-600 border border-amber-500/20'
-                              : post.status === 'approved' || post.status === 'published'
-                              ? 'bg-emerald-500/10 text-emerald-600 border border-emerald-500/20'
-                              : 'bg-rose-500/10 text-rose-600 border border-rose-500/20'
-                          }`}
+                          className={cn(
+                            'label ml-auto text-[0.5625rem]',
+                            post.status === 'pending' && 'text-accent',
+                            (post.status === 'approved' || post.status === 'published') &&
+                              'text-primary',
+                            post.status === 'rejected' && 'text-destructive'
+                          )}
                         >
-                          {post.status}
+                          {post.status === 'pending'
+                            ? 'Waiting for you'
+                            : post.status === 'rejected'
+                            ? 'Not approved'
+                            : 'Published'}
                         </span>
                       </div>
-                    </div>
 
-                    <div className="mb-6">
-                      <h2 className="font-serif text-xl sm:text-2xl font-bold text-foreground mb-2">
+                      <h2 className="mt-3 font-display type-3 font-semibold leading-tight text-foreground">
                         {post.title}
                       </h2>
-                      <p className="text-muted-foreground text-sm line-clamp-3 leading-relaxed bg-secondary/50 p-4 rounded-xl border border-border/60">
-                        {post.excerpt || post.content?.replace(/<[^>]*>/g, '').slice(0, 300)}
-                      </p>
-                    </div>
 
-                    {/* Live Feedback Box Toggle */}
-                    {activeFeedbackId === post.id && (
-                      <div className="mt-4 pt-4 border-t border-border/60">
-                        <label className="block text-xs font-bold text-foreground mb-1">
-                          Revision Feedback to Author ({post.author?.name})
-                        </label>
-                        <p className="text-[11px] text-muted-foreground mb-2">
-                          Posts with feedback will be returned to the author as drafts for revision.
-                        </p>
-                        <div className="flex gap-2">
-                          <input
-                            type="text"
-                            placeholder="Type revision requirements, suggestions or feedback..."
-                            value={feedbackInput[post.id] || ''}
-                            onChange={(e) =>
-                              setFeedbackInput({ ...feedbackInput, [post.id]: e.target.value })
-                            }
-                            className="flex-1 px-3 py-2 text-xs bg-secondary border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-primary text-foreground"
+                      <div className="mt-2 flex items-center gap-2.5">
+                        {post.author?.avatar ? (
+                          <img
+                            src={post.author.avatar}
+                            alt=""
+                            loading="lazy"
+                            className="h-7 w-7 rounded-full object-cover"
                           />
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            disabled={actioningId === post.id}
-                            onClick={() => handleModerate(post.id, 'rejected')}
+                        ) : null}
+                        <Link
+                          href={`/author/${post.author?.id}`}
+                          className="link-quiet text-sm font-medium text-foreground"
+                        >
+                          {post.author?.name}
+                        </Link>
+                        <span className="text-xs text-ink-faint">· {post.read_time} min read</span>
+                      </div>
+
+                      <p className="mt-4 max-w-2xl font-reading text-base leading-relaxed text-ink-soft">
+                        {preview}
+                        {preview.length >= 320 && '…'}
+                      </p>
+
+                      <AnimatePresence initial={false}>
+                        {activeFeedbackId === post.id && (
+                          <motion.div
+                            initial={{ height: 0, opacity: 0 }}
+                            animate={{ height: 'auto', opacity: 1 }}
+                            exit={{ height: 0, opacity: 0 }}
+                            className="overflow-hidden"
                           >
-                            <Send size={13} /> Request Revision
-                          </Button>
+                            <div className="mt-5 max-w-2xl border border-rule bg-card p-4">
+                              <label
+                                htmlFor={`feedback-${post.id}`}
+                                className="label mb-1.5 block"
+                              >
+                                A note to {post.author?.name || 'the writer'}
+                              </label>
+                              <p className="mb-3 text-xs leading-relaxed text-ink-soft">
+                                Sending a note returns the piece to their drafts so they can work on
+                                it. They are notified straight away.
+                              </p>
+                              <div className="flex flex-col gap-2 sm:flex-row">
+                                <input
+                                  id={`feedback-${post.id}`}
+                                  type="text"
+                                  placeholder="What should they change, and why?"
+                                  value={feedbackInput[post.id] || ''}
+                                  onChange={(e) =>
+                                    setFeedbackInput({ ...feedbackInput, [post.id]: e.target.value })
+                                  }
+                                  className="min-w-0 flex-1 border border-rule bg-input px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none"
+                                />
+                                <InkButton
+                                  variant="outline"
+                                  size="sm"
+                                  disabled={busy || !(feedbackInput[post.id] || '').trim()}
+                                  onClick={() => handleModerate(post.id, 'rejected')}
+                                >
+                                  <Send size={13} aria-hidden /> Send it back
+                                </InkButton>
+                              </div>
+                            </div>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+
+                      <div className="mt-6 flex flex-wrap items-center justify-between gap-4">
+                        <div className="flex items-center gap-5">
+                          <Link
+                            href={`/posts/${post.id}`}
+                            target="_blank"
+                            className="link-quiet inline-flex items-center gap-1.5 text-xs font-medium text-foreground"
+                          >
+                            <Eye size={14} aria-hidden /> Read the whole piece
+                          </Link>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setActiveFeedbackId(activeFeedbackId === post.id ? null : post.id)
+                            }
+                            aria-expanded={activeFeedbackId === post.id}
+                            className="inline-flex items-center gap-1.5 text-xs font-medium text-ink-faint transition-colors hover:text-foreground"
+                          >
+                            <MessageSquare size={13} aria-hidden /> Write a note
+                          </button>
+                        </div>
+
+                        <div className="flex items-center gap-2.5">
+                          {post.status !== 'rejected' && (
+                            <InkButton
+                              variant="danger"
+                              size="sm"
+                              disabled={busy}
+                              onClick={() => handleModerate(post.id, 'rejected')}
+                            >
+                              <XCircle size={14} aria-hidden /> Decline
+                            </InkButton>
+                          )}
+                          {post.status !== 'approved' && (
+                            <InkButton
+                              variant="solid"
+                              size="sm"
+                              disabled={busy}
+                              onClick={() => handleModerate(post.id, 'approved')}
+                            >
+                              <CheckCircle2 size={14} aria-hidden /> Publish
+                            </InkButton>
+                          )}
                         </div>
                       </div>
-                    )}
-
-                    {/* Action buttons */}
-                    <div className="flex flex-wrap items-center justify-between gap-3 pt-4 border-t border-border/60">
-                      <div className="flex items-center gap-3">
-                        <Link
-                          href={`/posts/${post.id}`}
-                          target="_blank"
-                          className="inline-flex items-center gap-1.5 text-xs font-semibold text-primary hover:underline"
-                        >
-                          <Eye size={14} /> Full Preview
-                        </Link>
-                        <button
-                          onClick={() =>
-                            setActiveFeedbackId(activeFeedbackId === post.id ? null : post.id)
-                          }
-                          className="inline-flex items-center gap-1 text-xs font-semibold text-muted-foreground hover:text-foreground"
-                        >
-                          <MessageSquare size={13} /> Live Feedback
-                        </button>
-                      </div>
-
-                      <div className="flex items-center gap-2">
-                        {post.status !== 'rejected' && (
-                          <Button
-                            variant="destructive"
-                            size="sm"
-                            disabled={actioningId === post.id}
-                            onClick={() => handleModerate(post.id, 'rejected')}
-                          >
-                            <XCircle size={15} /> Reject
-                          </Button>
-                        )}
-                        {post.status !== 'approved' && (
-                          <Button
-                            variant="green"
-                            size="sm"
-                            disabled={actioningId === post.id}
-                            onClick={() => handleModerate(post.id, 'approved')}
-                          >
-                            <CheckCircle2 size={15} /> Approve & Publish
-                          </Button>
-                        )}
-                      </div>
-                    </div>
-                  </motion.article>
-                ))}
+                    </motion.li>
+                  );
+                })}
               </AnimatePresence>
-            </div>
+            </ul>
           )}
         </div>
       </main>
+
       <Footer />
-    </>
+    </div>
   );
 }
