@@ -119,7 +119,6 @@ export function EmojiPicker({ onSelectEmoji, onClose, className = '' }) {
             whileTap={{ scale: 0.9 }}
             onClick={() => {
               onSelectEmoji(emoji);
-              if (onClose) onClose();
             }}
             className="w-9 h-9 flex items-center justify-center text-xl rounded-xl hover:bg-secondary/90 transition-all select-none"
           >

@@ -10,6 +10,7 @@ export function EmojiPickerPopover({
   side = 'top',
   align = 'start',
   sideOffset = 8,
+  avoidCollisions = true,
 }) {
   const [open, setOpen] = useState(false);
 
@@ -21,13 +22,13 @@ export function EmojiPickerPopover({
           side={side}
           align={align}
           sideOffset={sideOffset}
+          avoidCollisions={avoidCollisions}
           className="z-[99999] outline-none animate-in fade-in-0 zoom-in-95 duration-150"
           onInteractOutside={() => setOpen(false)}
         >
           <EmojiPicker
             onSelectEmoji={(emoji) => {
               onSelectEmoji(emoji);
-              setOpen(false);
             }}
             onClose={() => setOpen(false)}
           />

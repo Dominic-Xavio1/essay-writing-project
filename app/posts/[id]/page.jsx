@@ -1,16 +1,17 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { Header } from '@/components/shared/Header';
 import { Footer } from '@/components/shared/Footer';
 import { ReadingBuddy } from '@/components/shared/ReadingBuddy';
+import { ReadingReflection } from '@/components/shared/ReadingReflection';
+import { READING_QUOTES } from '@/lib/reading-quotes';
 import { api } from '@/lib/api-client';
 import { Button } from '@/components/ui/customButton';
 import { ClapButton } from '@/components/ui/clap-button';
 import { AuthorHoverCard } from '@/components/ui/author-hover-card';
-import { EmojiPicker } from '@/components/ui/EmojiPicker';
 import { EmojiPickerPopover } from '@/components/ui/EmojiPickerPopover';
 import { CreativeLikeAnimation } from '@/components/ui/CreativeLikeAnimation';
 import {
@@ -46,16 +47,13 @@ export default function PostDetailPage() {
   const [liked, setLiked] = useState(false);
   const [bookmarked, setBookmarked] = useState(false);
   const [selectedReaction, setSelectedReaction] = useState(null);
-  const [showReactions, setShowReactions] = useState(false);
   const [reactionCounts, setReactionCounts] = useState([]);
 
   // Comments state
   const [comments, setComments] = useState([]);
   const [newComment, setNewComment] = useState('');
-  const [showCommentEmojiPicker, setShowCommentEmojiPicker] = useState(false);
   const [replyingToId, setReplyingToId] = useState(null);
   const [replyText, setReplyText] = useState('');
-  const [showReplyEmojiPicker, setShowReplyEmojiPicker] = useState(false);
   const [commentSort, setCommentSort] = useState('newest'); // 'newest' | 'likes'
   const [submittingComment, setSubmittingComment] = useState(false);
 
@@ -63,8 +61,11 @@ export default function PostDetailPage() {
   const [loading, setLoading] = useState(true);
   const [following, setFollowing] = useState(false);
   const [scrollProgress, setScrollProgress] = useState(0);
+  const [quoteIndex, setQuoteIndex] = useState(0);
+  const [seenQuoteIndices, setSeenQuoteIndices] = useState([0]);
   const [textSize, setTextSize] = useState('large');
   const [focusMode, setFocusMode] = useState(false);
+  const quoteStageRef = useRef(0);
 
   // Image Lightbox state
   const [lightboxOpen, setLightboxOpen] = useState(false);
@@ -99,6 +100,28 @@ export default function PostDetailPage() {
     window.addEventListener('scroll', handleScroll);
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
+
+  const quoteStage = Math.min(9, Math.floor(scrollProgress / 10));
+
+  useEffect(() => {
+    if (quoteStageRef.current === quoteStage) return;
+    quoteStageRef.current = quoteStage;
+
+    const repeatSeenQuote = seenQuoteIndices.length > 0 && Math.random() < 0.2;
+    const unseenQuotes = READING_QUOTES
+      .map((_, index) => index)
+      .filter((index) => !seenQuoteIndices.includes(index));
+    const availableQuotes = repeatSeenQuote ? seenQuoteIndices : unseenQuotes;
+    const pool = availableQuotes.length > 0
+      ? availableQuotes
+      : READING_QUOTES.map((_, index) => index);
+    const nextQuoteIndex = pool[Math.floor(Math.random() * pool.length)];
+
+    setQuoteIndex(nextQuoteIndex);
+    setSeenQuoteIndices((seen) =>
+      seen.includes(nextQuoteIndex) ? seen : [...seen, nextQuoteIndex]
+    );
+  }, [quoteStage, seenQuoteIndices]);
 
   // Fetch Post & Comments
   useEffect(() => {
@@ -198,7 +221,6 @@ export default function PostDetailPage() {
       const res = await api.reactPost(id, emoji);
       setSelectedReaction(res.userReaction);
       setReactionCounts(res.reactions || []);
-      setShowReactions(false);
       if (res.removed) {
         toast.info(`Removed reaction ${emoji}`);
       } else {
@@ -238,10 +260,8 @@ export default function PostDetailPage() {
       if (parentId) {
         setReplyText('');
         setReplyingToId(null);
-        setShowReplyEmojiPicker(false);
       } else {
         setNewComment('');
-        setShowCommentEmojiPicker(false);
       }
       setPost((prev) => ({ ...prev, comments: (prev.comments || 0) + 1 }));
       toast.success(parentId ? 'Reply posted!' : 'Comment posted!');
@@ -300,30 +320,10 @@ export default function PostDetailPage() {
   };
 
   const READING_MOMENTS = [
-    {
-      buddy: 'mouse',
-      mood: 'curious',
-      quote: 'Wonder is the feeling of a philosopher, and philosophy begins in wonder.',
-      author: 'Socrates, via Plato',
-    },
-    {
-      buddy: 'monkey',
-      mood: 'focused',
-      quote: 'The important thing is not to stop questioning. Curiosity has its own reason for existing.',
-      author: 'Albert Einstein',
-    },
-    {
-      buddy: 'hippo',
-      mood: 'determined',
-      quote: 'The unexamined life is not worth living.',
-      author: 'Socrates',
-    },
-    {
-      buddy: 'mouse',
-      mood: 'joyful',
-      quote: 'Life is like riding a bicycle. To keep your balance, you must keep moving.',
-      author: 'Albert Einstein',
-    },
+    { buddy: 'mouse', mood: 'curious' },
+    { buddy: 'monkey', mood: 'focused' },
+    { buddy: 'hippo', mood: 'determined' },
+    { buddy: 'mouse', mood: 'joyful' },
   ];
 
   // Sort comments
@@ -332,25 +332,29 @@ export default function PostDetailPage() {
     return new Date(b.created_at) - new Date(a.created_at);
   });
   const readingMoment = READING_MOMENTS[Math.min(3, Math.floor(scrollProgress / 25))];
+  const readingQuote = READING_QUOTES[quoteIndex];
 
   return (
     <>
       {/* Scroll Progress Bar */}
-      <div className="fixed top-0 left-0 right-0 h-1 bg-secondary z-50">
+      <div className="fixed top-0 left-0 right-0 z-50 h-1 bg-secondary">
         <div
           className="h-full bg-primary transition-all duration-150 ease-out"
           style={{ width: `${scrollProgress}%` }}
         />
       </div>
 
+      <div className="reader-scene">
+        <div className="reader-scene__backdrop" aria-hidden="true" />
+        <div className="relative z-10">
       {!focusMode && <Header />}
 
-      <main className="min-h-screen bg-background pb-32">
+      <main className="relative min-h-screen pb-32">
         {/* Pinned-print featured image */}
         {post.featured_image && (
           <figure className="relative mx-auto w-full max-w-5xl px-4 pt-8 sm:px-6 sm:pt-12">
             <span aria-hidden="true" className="absolute left-[18%] top-7 z-10 hidden h-6 w-20 -rotate-6 rounded-sm bg-primary/20 shadow-sm sm:block" />
-            <div className="group relative overflow-hidden rounded-[1.75rem] border border-border bg-card p-2 shadow-[0_18px_55px_-32px_rgba(26,33,24,0.45)] sm:p-3">
+            <div className="reader-glass group relative overflow-hidden rounded-[1.75rem] border p-2 sm:p-3">
               <div className="relative flex max-h-[520px] min-h-[240px] items-center justify-center overflow-hidden rounded-[1.25rem] bg-secondary/50 sm:min-h-[320px]">
                 <img
                   src={post.featured_image}
@@ -377,13 +381,13 @@ export default function PostDetailPage() {
         )}
 
         {/* Article Container */}
-        <div className={`mx-auto px-4 sm:px-6 lg:px-8 ${focusMode ? 'max-w-3xl' : 'grid max-w-7xl grid-cols-1 gap-8 xl:grid-cols-[minmax(0,1fr)_minmax(0,48rem)_minmax(0,1fr)]'}`}>
+        <div className={`mx-auto px-4 sm:px-6 lg:px-8 ${focusMode ? 'max-w-4xl' : 'grid max-w-7xl grid-cols-1 gap-8 xl:grid-cols-[minmax(0,1fr)_minmax(0,56rem)_minmax(0,1fr)]'}`}>
           {!focusMode && (
             <aside aria-label="Reading companion" className="fixed left-4 top-1/2 z-30 hidden -translate-y-1/2 flex-col items-center text-center xl:flex">
               <ReadingBuddy variant={readingMoment.buddy} mood={readingMoment.mood} progress={scrollProgress} />
               <p className="mt-2 text-[10px] font-extrabold uppercase text-primary">{readingMoment.mood === 'joyful' ? 'You made it!' : 'Reading buddy'}</p>
               <div
-                className="mt-2 flex items-center gap-2 rounded-full border border-border bg-card px-3 py-2 text-xs text-muted-foreground shadow-sm"
+                className="reader-glass mt-2 flex items-center gap-2 rounded-full border px-3 py-2 text-xs text-muted-foreground"
                 role="progressbar"
                 aria-label="Article reading progress"
                 aria-valuemin={0}
@@ -397,7 +401,7 @@ export default function PostDetailPage() {
             </aside>
           )}
 
-        <article className={`w-full max-w-3xl pt-8 pb-16 ${focusMode ? 'mx-auto' : 'mx-auto xl:col-start-2'}`}>
+        <article className={`w-full max-w-6xl px-5 py-8 pb-16 sm:px-8 lg:px-10 ${focusMode ? 'mx-auto' : 'mx-auto xl:col-start-2'}`}>
           {/* Category & Tags */}
           <div className="mb-6 flex flex-wrap gap-2 items-center">
             <span className="text-xs font-extrabold uppercase tracking-wider bg-primary/10 text-primary px-3.5 py-1.5 rounded-full border border-primary/20 shadow-xs">
@@ -465,6 +469,30 @@ export default function PostDetailPage() {
             )}
           </div>
 
+          <div className="reader-glass mb-8 rounded-2xl border p-4 xl:hidden">
+            <div className="flex items-start gap-3">
+              <Quote size={17} className="mt-0.5 shrink-0 text-primary/70" aria-hidden="true" />
+              <div className="min-w-0 flex-1">
+                <p className="mb-1 text-[10px] font-bold uppercase tracking-wider text-primary">A quiet thought</p>
+                <AnimatePresence mode="wait">
+                  <motion.p
+                    key={quoteIndex}
+                    initial={{ opacity: 0, y: 5 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -5 }}
+                    transition={{ duration: 0.3 }}
+                    className="font-hand text-lg leading-snug text-foreground"
+                  >
+                    {readingQuote}
+                  </motion.p>
+                </AnimatePresence>
+              </div>
+            </div>
+            <div className="mt-4 border-t border-border/60 pt-3">
+              <ReadingReflection postId={id} />
+            </div>
+          </div>
+
           {/* Article Body Content */}
           <div
             className={`reading-prose max-w-none mb-16 ${textSizeClasses[textSize]}`}
@@ -472,7 +500,7 @@ export default function PostDetailPage() {
           />
 
           {/* Reader Actions & Reactions Bar */}
-          <div className="bg-card/90 backdrop-blur-md border border-border rounded-2xl p-6 mb-16 shadow-lg relative">
+          <div className="reader-glass relative mb-16 rounded-2xl border p-6">
             <h3 className="font-bold text-sm text-foreground mb-4 flex items-center gap-2">
               <Sparkles size={16} className="text-amber-500 animate-pulse" /> Express Your Thoughts
             </h3>
@@ -566,7 +594,7 @@ export default function PostDetailPage() {
             </div>
 
             {/* Comment Composer */}
-            <div className="bg-card border border-border rounded-2xl p-5 mb-8 shadow-md relative z-30">
+            <div className="reader-glass relative z-30 mb-8 rounded-2xl border p-5">
               <textarea
                 value={newComment}
                 onChange={(e) => setNewComment(e.target.value)}
@@ -579,8 +607,9 @@ export default function PostDetailPage() {
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <EmojiPickerPopover
-                    side="top"
+                    side="bottom"
                     align="start"
+                    avoidCollisions={false}
                     onSelectEmoji={(emoji) => setNewComment((prev) => prev + emoji)}
                     trigger={
                       <button
@@ -618,7 +647,7 @@ export default function PostDetailPage() {
 
             {/* Comments Feed */}
             {sortedComments.length === 0 ? (
-              <div className="text-center py-12 px-6 bg-card/60 border border-border/80 rounded-2xl">
+              <div className="reader-glass rounded-2xl border px-6 py-12 text-center">
                 <div className="w-12 h-12 rounded-full bg-secondary flex items-center justify-center mx-auto mb-3 text-2xl">
                   💬
                 </div>
@@ -640,7 +669,7 @@ export default function PostDetailPage() {
                         key={comment.id}
                         initial={{ opacity: 0, y: 10 }}
                         animate={{ opacity: 1, y: 0 }}
-                        className="bg-card border border-border/80 p-5 rounded-2xl shadow-xs hover:border-border transition-all"
+                        className="reader-glass rounded-2xl border p-5 shadow-xs transition-all hover:border-primary/30"
                       >
                         <div className="flex gap-3.5">
                           <img
@@ -752,7 +781,7 @@ export default function PostDetailPage() {
                             {replies.map((reply) => (
                               <div
                                 key={reply.id}
-                                className="flex gap-3 bg-secondary/40 border border-border/50 p-3.5 rounded-xl"
+                                className="reader-glass flex gap-3 rounded-xl border p-3.5"
                               >
                                 <img
                                   src={reply.avatar || '/placeholder-user.jpg'}
@@ -817,7 +846,7 @@ export default function PostDetailPage() {
                   <Link
                     key={relatedPost.id}
                     href={`/posts/${relatedPost.id}`}
-                    className="group bg-card border border-border rounded-xl p-5 hover:border-primary transition-all shadow-xs"
+                    className="reader-glass group rounded-xl border p-5 shadow-xs transition-all hover:border-primary"
                   >
                     {relatedPost.featured_image && (
                       <div className="h-36 overflow-hidden rounded-lg mb-4 bg-secondary">
@@ -842,13 +871,26 @@ export default function PostDetailPage() {
         </article>
 
           {!focusMode && (
-            <aside aria-label="Reading inspiration" className="fixed right-4 top-1/2 z-30 hidden w-40 -translate-y-1/2 xl:block">
-              <div className="rounded-2xl border border-border bg-card/95 p-4 shadow-sm">
+            <aside aria-label="Reading inspiration" className="fixed right-4 top-1/2 z-30 hidden w-48 -translate-y-1/2 space-y-3 xl:block">
+              <div className="reader-glass rounded-2xl border p-4">
                 <Quote size={17} className="text-primary/70" aria-hidden="true" />
-                <p className="mt-3 font-hand text-lg leading-snug text-foreground">{readingMoment.quote}</p>
-                <span className="mt-3 block text-[10px] font-bold uppercase text-muted-foreground">{readingMoment.author}</span>
+                <p className="mt-2 text-[10px] font-bold uppercase tracking-wider text-primary">A quiet thought</p>
+                <AnimatePresence mode="wait">
+                  <motion.p
+                    key={quoteIndex}
+                    initial={{ opacity: 0, y: 5 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -5 }}
+                    transition={{ duration: 0.3 }}
+                    className="mt-2 font-hand text-lg leading-snug text-foreground"
+                  >
+                    {readingQuote}
+                  </motion.p>
+                </AnimatePresence>
+                <span className="mt-3 block text-[10px] font-bold uppercase text-muted-foreground">ASYV Writing</span>
               </div>
-              <div aria-hidden="true" className="ml-6 mt-3 flex h-9 w-9 rotate-12 items-center justify-center rounded-xl border border-primary/15 bg-primary/5 text-primary/70">
+              <ReadingReflection postId={id} />
+              <div aria-hidden="true" className="ml-6 flex h-9 w-9 rotate-12 items-center justify-center rounded-xl border border-primary/15 bg-primary/5 text-primary/70">
                 <Heart size={16} />
               </div>
             </aside>
@@ -860,7 +902,7 @@ export default function PostDetailPage() {
       <motion.div
         initial={{ y: 80, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
-        className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 bg-card/95 backdrop-blur-md border border-border/90 px-4 py-2.5 rounded-full shadow-2xl flex items-center gap-3 sm:gap-4"
+        className="reader-glass fixed bottom-6 left-1/2 z-40 flex -translate-x-1/2 items-center gap-3 rounded-full border px-4 py-2.5 shadow-2xl sm:gap-4"
       >
         <ClapButton initialCount={post.likes} onClap={handleLike} size="sm" />
 
@@ -940,7 +982,9 @@ export default function PostDetailPage() {
         )}
       </AnimatePresence>
 
-      {!focusMode && <Footer />}
+      {!focusMode && <Footer readerTheme />}
+        </div>
+      </div>
     </>
   );
 }
